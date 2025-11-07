@@ -1,0 +1,33 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Lead;
+use App\Models\User;
+use Illuminate\Support\Arr;
+
+class LeadSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $statusList = Lead::STATUS;
+        $origens = ['Site', 'Instagram', 'Facebook', 'Indicação', 'Anúncio', 'WhatsApp'];
+
+        $corretores = User::whereHas('roles', fn($q) => $q->where('slug', 'corretor'))->get();
+
+        for ($i = 1; $i <= 20; $i++) {
+            Lead::create([
+                'nome'     => "Lead {$i}",
+                'email'    => "lead{$i}@example.com",
+                'telefone' => '(85) 9' . rand(8000, 9999) . '-' . rand(1000, 9999),
+                'origem'   => Arr::random($origens),
+                'mensagem' => 'Interesse em imóvel ' . rand(100, 999),
+                'status'   => Arr::random($statusList),
+                'user_id'  => $corretores->random()->id ?? null,
+            ]);
+        }
+
+        $this->command->info('✅ 20 Leads gerados com sucesso!');
+    }
+}
