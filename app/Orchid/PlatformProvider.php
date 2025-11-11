@@ -4,125 +4,114 @@ declare(strict_types=1);
 
 namespace App\Orchid;
 
+use Illuminate\Routing\Router;
 use Orchid\Platform\Dashboard;
 use Orchid\Platform\ItemPermission;
 use Orchid\Platform\OrchidServiceProvider;
 use Orchid\Screen\Actions\Menu;
-use Orchid\Support\Facades\Dashboard as OrchidDashboard;
+use App\Orchid\Http\Middleware\Access;
 
+/**
+ * Provedor de serviços para configuração do painel Orchid.
+ */
 class PlatformProvider extends OrchidServiceProvider
 {
     /**
-     * Bootstrap the application services.
+     * Registra serviços e middlewares do Orchid.
+     */
+    public function register(): void
+    {
+        parent::register();
+        $this->app['router']->aliasMiddleware('access', Access::class);
+    }
+
+    /**
+     * Inicializa o provedor e publica assets.
      */
     public function boot(Dashboard $dashboard): void
     {
         parent::boot($dashboard);
-
-        // ------------------------------------------------------------------
-        // Recursos globais (CSS/JS base)
-        // ------------------------------------------------------------------
-        OrchidDashboard::registerResource('stylesheets', [
-            asset('vendor/orchid/css/orchid.css'),
-        ]);
-
-        // ------------------------------------------------------------------
-        // Recursos nomeados (Kanban)
-        // ------------------------------------------------------------------
-        OrchidDashboard::registerResource('stylesheets', 'kanban', asset('css/kanban.css'));
-        OrchidDashboard::registerResource('scripts', 'kanban-js', asset('js/kanban.js'));
+        $this->publishAssets();
     }
 
     /**
-     * Menu lateral do painel.
+     * Publica os assets JavaScript do Orchid.
+     */
+    private function publishAssets(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../../resources/js' => resource_path('js'),
+        ], 'orchid-js');
+    }
+
+    /**
+     * Registra as rotas do painel a partir de routes/platform.php.
+     */
+    public function routes(Router $router): void
+    {
+        $platformRoutes = base_path('routes/platform.php');
+        if (file_exists($platformRoutes)) {
+            require $platformRoutes;
+        }
+    }
+
+    /**
+     * Configura os itens do menu do painel.
+     *
+     * @return Menu[]
      */
     public function menu(): array
     {
-        return [
-            // === INÍCIO ===
-            Menu::make('Dashboard')
-                ->icon('bs.speedometer')
-                ->route('platform.dashboard')
-                ->title('Início'),
-
-            // === LEADS ===
-            Menu::make('Leads')
-                ->icon('bs.people')
-                ->route('platform.leads.index')
-                ->permission('platform.leads'),
-
-            Menu::make('Kanban de Leads')
-                ->icon('bs.layout-three-columns')
-                ->route('platform.leads.kanban')
-                ->permission('platform.leads'),
-
-            // === PROPOSTAS ===
-            Menu::make('Propostas')
-                ->icon('bs.file-earmark-text')
-                ->route('platform.propostas.index')
-                ->permission('platform.propostas'),
-
-            // === COMISSÕES ===
-            Menu::make('Comissões')
-                ->icon('bs.currency-dollar')
-                ->route('platform.comissoes.index')
-                ->permission('platform.comissoes'),
-
-            // === CONTRATOS ===
-            Menu::make('Contratos')
-                ->icon('bs.file-earmark-check')
-                ->route('platform.contratos.index')
-                ->permission('platform.contratos'),
-
-            // === CONSTRUTORAS / PARCEIROS ===
-            Menu::make('Construtoras / Parceiros')
-                ->icon('bs.building')
-                ->route('platform.construtoras.index')
-                ->permission('platform.construtoras'),
-
-            // === IMÓVEIS ===
-            Menu::make('Imóveis')
-                ->icon('bs.buildings')
-                ->route('platform.imoveis.index')
-                ->permission('platform.imoveis'),
-
-            // === ALUGUÉIS ===
-            Menu::make('Aluguéis')
-                ->icon('bs.key')
-                ->route('platform.alugueis.index')
-                ->permission('platform.alugueis'),
-
-            // === ADMINISTRAÇÃO ===
-            Menu::make('Usuários')
-                ->icon('bs.people')
-                ->route('platform.systems.users')
-                ->permission('platform.systems.users')
-                ->title('Administração'),
-
-            Menu::make('Funções')
-                ->icon('bs.shield-lock')
-                ->route('platform.systems.roles')
-                ->permission('platform.systems.roles'),
-        ];
+        return array_map(
+            fn (array $item): Menu => $this->buildMenuItem($item),
+            OrchidConfig::getMenuItems()
+        );
     }
 
     /**
-     * Permissões do sistema.
+     * Configura as permissões do sistema.
+     *
+     * @return ItemPermission[]
      */
     public function permissions(): array
     {
-        return [
-            ItemPermission::group('Sistema')
-                ->addPermission('platform.dashboard', 'Acessar Dashboard')
-                ->addPermission('platform.leads', 'Gerenciar Leads')
-                ->addPermission('platform.propostas', 'Gerenciar Propostas')
-                ->addPermission('platform.comissoes', 'Gerenciar Comissões')
-                ->addPermission('platform.contratos', 'Gerenciar Contratos')
-                ->addPermission('platform.alugueis', 'Gerenciar Aluguéis')
-                ->addPermission('platform.construtoras', 'Gerenciar Construtoras')
-                ->addPermission('platform.imoveis', 'Gerenciar Imóveis')
-                ->addPermission('platform.systems.users', 'Gerenciar Usuários')
-                ->addPermission('platform.systems.roles', 'Gerenciar Funções'),
-        ];
+        return array_map(
+            fn (array $group): ItemPermission => $this->buildPermissionGroup($group),
+            OrchidConfig::getPermissions()
+        );
+    }
+
+    /**
+     * Constrói um item de menu a partir da configuração.
+     */
+    private function buildMenuItem(array $item): Menu
+    {
+        $menu = Menu::make($item['name'])
+            ->icon($item['icon'])
+            ->route($item['route']);
+
+        if (isset($item['permission'])) {
+            $menu->permission($item['permission']);
+        }
+
+        if (isset($item['title'])) {
+            $menu->title($item['title']);
+        }
+
+        return $menu;
+    }
+
+    /**
+     * Constrói um grupo de permissões a partir da configuração.
+     */
+    private function buildPermissionGroup(array $group): ItemPermission
+    {
+        $permission = ItemPermission::group($group['group']);
+
+        foreach ($group['items'] as $key => $description) {
+            $permission->addPermission($key, $description);
+        }
+
+        return $permission;
     }
 }

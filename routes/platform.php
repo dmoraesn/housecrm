@@ -28,6 +28,7 @@ use App\Orchid\Screens\{
     ComissaoListScreen, ComissaoEditScreen,
     PropostasListScreen, PropostasEditScreen, PropostaPdfScreen,
     LeadListScreen, LeadEditScreen, LeadKanbanScreen,
+    FluxoScreen,
     ConstrutoraListScreen, ConstrutoraEditScreen,
 
     // Exemplos
@@ -55,6 +56,10 @@ Route::screen('dashboard', DashboardScreen::class)
 Route::screen('profile', UserProfileScreen::class)
     ->name('platform.profile')
     ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Perfil'));
+
+// Rota para o Fluxo
+Route::screen('fluxo', FluxoScreen::class)
+    ->name('platform.fluxo');
 
 // --------------------------------------------------------------------------
 // SISTEMA (USUÁRIOS & PAPÉIS)
@@ -104,7 +109,7 @@ foreach ($crudModules as $prefix => $listScreen) {
     $editScreen = str_replace('List', 'Edit', $listScreen);
 
     Route::prefix($prefix)->name("platform.{$prefix}.")->group(function () use ($prefix, $listScreen, $editScreen) {
-        
+
         Route::screen('/', $listScreen)
             ->name('index')
             ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push(ucfirst($prefix)));
@@ -194,7 +199,6 @@ Route::prefix('leads')->name('platform.leads.')->group(function () {
         ->name('kanban.update');
 });
 
-
 // --------------------------------------------------------------------------
 // EXEMPLOS (em grupo com prefixo e nome)
 // --------------------------------------------------------------------------
@@ -208,12 +212,25 @@ Route::prefix('examples')->name('platform.example.')->group(function () {
     Route::screen('charts', ExampleChartsScreen::class)->name('charts');
     Route::screen('cards', ExampleCardsScreen::class)->name('cards');
     Route::screen('/', ExampleScreen::class)->name('index');
+});
 
+// --------------------------------------------------------------------------
+// OUTRAS ROTAS ESPECIAIS
+// --------------------------------------------------------------------------
 
-
-
-    // routes/platform.php
+// AJAX de cálculo para propostas
 Route::post('propostas/calculate', [PropostasEditScreen::class, 'ajaxCalculate'])
     ->name('platform.propostas.calculate');
 
-});
+
+
+
+
+
+Route::screen('leads/kanban', LeadKanbanScreen::class)
+    ->name('platform.leads.kanban');
+
+// ROTA NECESSÁRIA PARA O DRAG & DROP
+Route::post('leads/kanban/update', [LeadKanbanScreen::class, 'updateKanban'])
+    ->name('platform.leads.kanban.update');
+
