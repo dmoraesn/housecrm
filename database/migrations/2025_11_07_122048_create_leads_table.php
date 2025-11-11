@@ -27,11 +27,11 @@ return new class extends Migration
             $table->text('observacoes')->nullable();
 
             // ===================================================================
-            // STATUS DO FUNIL (ENUM com fluxo real)
+            // STATUS DO FUNIL (baseado em chaves do array Lead::STATUS)
             // ===================================================================
-            $table->enum('status', Lead::STATUS)
+            $table->enum('status', array_keys(Lead::STATUS))
                   ->default('novo')
-                  ->comment('Fluxo: novo → qualificação → visita → negociação → fechamento → perdido');
+                  ->comment('Fluxo: novo → qualificacao → visita → negociacao → fechamento → perdido');
 
             // ===================================================================
             // DADOS DE NEGÓCIO
@@ -42,17 +42,21 @@ return new class extends Migration
                   ->onDelete('set null')
                   ->comment('Corretor responsável');
 
-            $table->dateTime('data_contato')->nullable()
+            $table->dateTime('data_contato')
+                  ->nullable()
                   ->comment('Data do primeiro contato');
 
-            $table->decimal('valor_interesse', 14, 2)->nullable()
+            $table->decimal('valor_interesse', 14, 2)
+                  ->nullable()
                   ->comment('Valor estimado de interesse do lead');
+
+            $table->integer('order')->nullable()->default(1)->comment('Posição do lead no funil');
 
             // ===================================================================
             // METADADOS
             // ===================================================================
             $table->timestamps();
-            $table->softDeletes(); // Permite recuperação de leads excluídos
+            $table->softDeletes();
 
             // ===================================================================
             // ÍNDICES PARA PERFORMANCE
@@ -60,7 +64,7 @@ return new class extends Migration
             $table->index('status');
             $table->index('user_id');
             $table->index('created_at');
-            $table->index(['status', 'user_id']); // Filtro comum: "meus leads em negociação"
+            $table->index(['status', 'user_id']);
             $table->index('origem');
         });
     }
