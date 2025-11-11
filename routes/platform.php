@@ -4,274 +4,216 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Tabuna\Breadcrumbs\Trail;
+use App\Orchid\Screens\Propostas\PropostasKanbanScreen; // NOVA IMPORTAÇÃO
 
 // --------------------------------------------------------------------------
-// Core Screens (Orchid + Sistema)
+// IMPORTAÇÃO DE TELAS (Screens)
 // --------------------------------------------------------------------------
-use App\Orchid\Screens\PlatformScreen;
-use App\Orchid\Screens\User\UserListScreen;
-use App\Orchid\Screens\User\UserEditScreen;
-use App\Orchid\Screens\User\UserProfileScreen;
-use App\Orchid\Screens\Role\RoleListScreen;
-use App\Orchid\Screens\Role\RoleEditScreen;
-use App\Orchid\Screens\LeadKanbanScreen;
+
+use App\Orchid\Screens\{
+    // Core
+    PlatformScreen,
+    User\UserListScreen,
+    User\UserEditScreen,
+    User\UserProfileScreen,
+    Role\RoleListScreen,
+    Role\RoleEditScreen,
+
+    // Módulos Customizados
+    DashboardScreen,
+    ClienteListScreen, ClienteEditScreen,
+    ImovelListScreen, ImovelEditScreen,
+    AluguelListScreen, AluguelEditScreen,
+    ContratoListScreen, ContratoEditScreen,
+    ComissaoListScreen, ComissaoEditScreen,
+    PropostasListScreen, PropostasEditScreen, PropostaPdfScreen,
+    LeadListScreen, LeadEditScreen, LeadKanbanScreen,
+    ConstrutoraListScreen, ConstrutoraEditScreen,
+
+    // Exemplos
+    Examples\ExampleScreen,
+    Examples\ExampleLayoutsScreen,
+    Examples\ExampleFieldsScreen,
+    Examples\ExampleFieldsAdvancedScreen,
+    Examples\ExampleTextEditorsScreen,
+    Examples\ExampleCardsScreen,
+    Examples\ExampleChartsScreen,
+    Examples\ExampleActionsScreen,
+    Examples\ExampleGridScreen
+};
 
 // --------------------------------------------------------------------------
-// Módulos Customizados
-// --------------------------------------------------------------------------
-use App\Orchid\Screens\DashboardScreen;
-use App\Orchid\Screens\ClienteListScreen;
-use App\Orchid\Screens\ClienteEditScreen;
-use App\Orchid\Screens\ImovelListScreen;
-use App\Orchid\Screens\ImovelEditScreen;
-use App\Orchid\Screens\AluguelListScreen;
-use App\Orchid\Screens\AluguelEditScreen;
-use App\Orchid\Screens\ContratoListScreen;
-use App\Orchid\Screens\ContratoEditScreen;
-use App\Orchid\Screens\ComissaoListScreen;
-use App\Orchid\Screens\ComissaoEditScreen;
-use App\Orchid\Screens\PropostaListScreen;
-use App\Orchid\Screens\PropostaEditScreen;
-use App\Orchid\Screens\LeadListScreen;
-use App\Orchid\Screens\LeadEditScreen;
-use App\Orchid\Screens\ConstrutoraListScreen;
-use App\Orchid\Screens\ConstrutoraEditScreen;
-use App\Http\Controllers\LeadController;
-
-// --------------------------------------------------------------------------
-// Dashboard
+// DASHBOARD & PERFIL
 // --------------------------------------------------------------------------
 Route::screen('/main', PlatformScreen::class)
     ->name('platform.main');
 
 Route::screen('dashboard', DashboardScreen::class)
     ->name('platform.dashboard')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Dashboard', route('platform.dashboard'))
-    );
+    ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Dashboard'));
 
-// --------------------------------------------------------------------------
-// Usuários e Perfis
-// --------------------------------------------------------------------------
 Route::screen('profile', UserProfileScreen::class)
     ->name('platform.profile')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Perfil')
-    );
-
-Route::screen('users', UserListScreen::class)
-    ->name('platform.systems.users')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Usuários')
-    );
-
-Route::screen('users/create', UserEditScreen::class)
-    ->name('platform.systems.users.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.systems.users')->push('Criar Usuário')
-    );
-
-Route::screen('users/{user}/edit', UserEditScreen::class)
-    ->name('platform.systems.users.edit')
-    ->breadcrumbs(fn (Trail $trail, $user) =>
-        $trail->parent('platform.systems.users')->push($user->name)
-    );
+    ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Perfil'));
 
 // --------------------------------------------------------------------------
-// Papéis e Permissões
+// SISTEMA (USUÁRIOS & PAPÉIS)
 // --------------------------------------------------------------------------
-Route::screen('roles', RoleListScreen::class)
-    ->name('platform.systems.roles')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Papéis e Permissões')
-    );
+Route::prefix('systems')->name('platform.systems.')->group(function () {
+    // --- Usuários ---
+    Route::screen('users', UserListScreen::class)
+        ->name('users')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Usuários'));
 
-Route::screen('roles/create', RoleEditScreen::class)
-    ->name('platform.systems.roles.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.systems.roles')->push('Criar Papel')
-    );
+    Route::screen('users/create', UserEditScreen::class)
+        ->name('users.create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.systems.users')->push('Criar Usuário'));
 
-Route::screen('roles/{role}/edit', RoleEditScreen::class)
-    ->name('platform.systems.roles.edit')
-    ->breadcrumbs(fn (Trail $trail, $role) =>
-        $trail->parent('platform.systems.roles')->push($role->name)
-    );
+    Route::screen('users/{user}/edit', UserEditScreen::class)
+        ->name('users.edit')
+        ->breadcrumbs(fn (Trail $trail, $user) => $trail->parent('platform.systems.users')->push($user->name));
 
-// --------------------------------------------------------------------------
-// Módulos do CRM
-// --------------------------------------------------------------------------
+    // --- Papéis (Roles) ---
+    Route::screen('roles', RoleListScreen::class)
+        ->name('roles')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Papéis e Permissões'));
 
-// 🏗️ Construtoras
-Route::screen('construtoras', ConstrutoraListScreen::class)
-    ->name('platform.construtoras')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Construtoras')
-    );
-Route::screen('construtoras/create', ConstrutoraEditScreen::class)
-    ->name('platform.construtoras.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.construtoras')->push('Criar Construtora')
-    );
-Route::screen('construtoras/{construtora}/edit', ConstrutoraEditScreen::class)
-    ->name('platform.construtoras.edit')
-    ->breadcrumbs(fn (Trail $trail, $construtora) =>
-        $trail->parent('platform.construtoras')->push($construtora->name)
-    );
+    Route::screen('roles/create', RoleEditScreen::class)
+        ->name('roles.create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.systems.roles')->push('Criar Papel'));
 
-// 👥 Clientes
-Route::screen('clientes', ClienteListScreen::class)
-    ->name('platform.clientes')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Clientes')
-    );
-Route::screen('clientes/create', ClienteEditScreen::class)
-    ->name('platform.clientes.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.clientes')->push('Criar Cliente')
-    );
-Route::screen('clientes/{cliente}/edit', ClienteEditScreen::class)
-    ->name('platform.clientes.edit')
-    ->breadcrumbs(fn (Trail $trail, $cliente) =>
-        $trail->parent('platform.clientes')->push($cliente->nome_razao_social)
-    );
-
-// 🏠 Imóveis
-Route::screen('imoveis', ImovelListScreen::class)
-    ->name('platform.imoveis')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Imóveis')
-    );
-Route::screen('imoveis/create', ImovelEditScreen::class)
-    ->name('platform.imoveis.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.imoveis')->push('Criar Imóvel')
-    );
-Route::screen('imoveis/{imovel}/edit', ImovelEditScreen::class)
-    ->name('platform.imoveis.edit')
-    ->breadcrumbs(fn (Trail $trail, $imovel) =>
-        $trail->parent('platform.imoveis')->push($imovel->descricao)
-    );
-
-// 🏘️ Aluguéis
-Route::screen('alugueis', AluguelListScreen::class)
-    ->name('platform.alugueis')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Aluguéis')
-    );
-Route::screen('alugueis/create', AluguelEditScreen::class)
-    ->name('platform.alugueis.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.alugueis')->push('Criar Aluguel')
-    );
-Route::screen('alugueis/{aluguel}/edit', AluguelEditScreen::class)
-    ->name('platform.alugueis.edit')
-    ->breadcrumbs(fn (Trail $trail, $aluguel) =>
-        $trail->parent('platform.alugueis')->push("Aluguel #".$aluguel->id)
-    );
-
-// 📄 Contratos
-Route::screen('contratos', ContratoListScreen::class)
-    ->name('platform.contratos')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Contratos')
-    );
-Route::screen('contratos/create', ContratoEditScreen::class)
-    ->name('platform.contratos.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.contratos')->push('Criar Contrato')
-    );
-Route::screen('contratos/{contrato}/edit', ContratoEditScreen::class)
-    ->name('platform.contratos.edit')
-    ->breadcrumbs(fn (Trail $trail, $contrato) =>
-        $trail->parent('platform.contratos')->push("Contrato #".$contrato->id)
-    );
-
-// 💰 Comissões
-Route::screen('comissoes', ComissaoListScreen::class)
-    ->name('platform.comissoes')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Comissões')
-    );
-Route::screen('comissoes/create', ComissaoEditScreen::class)
-    ->name('platform.comissoes.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.comissoes')->push('Criar Comissão')
-    );
-Route::screen('comissoes/{comissao}/edit', ComissaoEditScreen::class)
-    ->name('platform.comissoes.edit')
-    ->breadcrumbs(fn (Trail $trail, $comissao) =>
-        $trail->parent('platform.comissoes')->push("Comissão #".$comissao->id)
-    );
-
-// 📑 Propostas
-Route::screen('propostas', PropostaListScreen::class)
-    ->name('platform.propostas')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Propostas')
-    );
-Route::screen('propostas/create', PropostaEditScreen::class)
-    ->name('platform.propostas.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.propostas')->push('Criar Proposta')
-    );
-Route::screen('propostas/{proposta}/edit', PropostaEditScreen::class)
-    ->name('platform.propostas.edit')
-    ->breadcrumbs(fn (Trail $trail, $proposta) =>
-        $trail->parent('platform.propostas')->push("Proposta #".$proposta->id)
-    );
-
-// 🎯 Leads (Ajustado para ter rotas separadas de create e edit)
-Route::screen('leads', LeadListScreen::class)
-    ->name('platform.leads')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.index')->push('Leads')
-    );
-
-// Rota de Criação (necessária para o botão "Novo Lead")
-Route::screen('leads/create', LeadEditScreen::class)
-    ->name('platform.leads.create')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.leads')->push('Criar Lead')
-    );
-
-// Rota de Edição
-Route::screen('leads/{lead}/edit', LeadEditScreen::class)
-    ->name('platform.leads.edit')
-    ->breadcrumbs(fn (Trail $trail, $lead) =>
-        $trail->parent('platform.leads')->push("Lead #".$lead->id)
-    );
-
-Route::screen('leads/kanban', LeadKanbanScreen::class)
-    ->name('platform.leads.kanban')
-    ->breadcrumbs(fn (Trail $trail) =>
-        $trail->parent('platform.leads')->push('Kanban')
-    );
-
-Route::post('/admin/leads/update-status', [LeadController::class, 'updateStatus'])
-    ->name('leads.updateStatus');
+    Route::screen('roles/{role}/edit', RoleEditScreen::class)
+        ->name('roles.edit')
+        ->breadcrumbs(fn (Trail $trail, $role) => $trail->parent('platform.systems.roles')->push($role->name));
+});
 
 // --------------------------------------------------------------------------
-// Padrões do Orchid (Exemplos)
+// MÓDULOS CRUD PADRÃO (construtoras, clientes, imóveis, etc)
 // --------------------------------------------------------------------------
-use App\Orchid\Screens\Examples\{
-    ExampleScreen,
-    ExampleLayoutsScreen,
-    ExampleFieldsScreen,
-    ExampleFieldsAdvancedScreen,
-    ExampleTextEditorsScreen,
-    ExampleCardsScreen,
-    ExampleChartsScreen,
-    ExampleActionsScreen,
-    ExampleGridScreen
-};
+$crudModules = [
+    'construtoras' => ConstrutoraListScreen::class,
+    'clientes'     => ClienteListScreen::class,
+    'imoveis'      => ImovelListScreen::class,
+    'alugueis'     => AluguelListScreen::class,
+    'contratos'    => ContratoListScreen::class,
+    'comissoes'    => ComissaoListScreen::class,
+];
 
-Route::screen('example', ExampleScreen::class)->name('platform.example');
-Route::screen('examples/layouts', ExampleLayoutsScreen::class)->name('platform.example.layouts');
-Route::screen('examples/form/fields', ExampleFieldsScreen::class)->name('platform.example.fields');
-Route::screen('examples/form/advanced', ExampleFieldsAdvancedScreen::class)->name('platform.example.advanced');
-Route::screen('examples/form/editors', ExampleTextEditorsScreen::class)->name('platform.example.editors');
-Route::screen('examples/form/actions', ExampleActionsScreen::class)->name('platform.example.actions');
-Route::screen('examples/grid', ExampleGridScreen::class)->name('platform.example.grid');
-Route::screen('examples/charts', ExampleChartsScreen::class)->name('platform.example.charts');
-Route::screen('examples/cards', ExampleCardsScreen::class)->name('platform.example.cards');
+foreach ($crudModules as $prefix => $listScreen) {
+    // Assume a convenção de nomenclatura (ListScreen -> EditScreen)
+    $editScreen = str_replace('List', 'Edit', $listScreen);
+
+    Route::prefix($prefix)->name("platform.{$prefix}.")->group(function () use ($prefix, $listScreen, $editScreen) {
+        
+        Route::screen('/', $listScreen)
+            ->name('index')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push(ucfirst($prefix)));
+
+        Route::screen('create', $editScreen)
+            ->name('create')
+            ->breadcrumbs(fn (Trail $trail) => $trail->parent("platform.{$prefix}.index")->push('Criar'));
+
+        Route::screen('{model}/edit', $editScreen)
+            ->name('edit')
+            ->breadcrumbs(fn (Trail $trail, $model) => $trail->parent("platform.{$prefix}.index")->push(
+                // Tenta encontrar o melhor "nome" para o breadcrumb
+                $model->name ?? $model->titulo ?? $model->nome_razao_social ?? "Item #{$model->id}"
+            ));
+    });
+}
+
+// --------------------------------------------------------------------------
+// PROPOSTAS (List, Create, Edit, PDF, KANBAN)
+// --------------------------------------------------------------------------
+Route::prefix('propostas')->name('platform.propostas.')->group(function () {
+
+    // Listagem
+    Route::screen('/', PropostasListScreen::class)
+        ->name('index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Propostas'));
+
+    // Criação (usa a PropostasEditScreen com injeção de um novo modelo)
+    Route::screen('create', PropostasEditScreen::class)
+        ->name('create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.propostas.index')->push('Criar Proposta'));
+
+    // Criação a partir de um Lead (também usa PropostasEditScreen)
+    Route::screen('create/{lead}', PropostasEditScreen::class)
+        ->name('create.from.lead')
+        ->breadcrumbs(fn (Trail $trail, $lead) => $trail->parent('platform.propostas.index')->push("Proposta para Lead #{$lead->id}"));
+
+    // Edição
+    Route::screen('{proposta}/edit', PropostasEditScreen::class)
+        ->name('edit')
+        ->breadcrumbs(fn (Trail $trail, $proposta) => $trail->parent('platform.propostas.index')->push("Proposta #{$proposta->id}"));
+
+    // Visualização do PDF
+    Route::screen('pdf/{proposta}', PropostaPdfScreen::class)
+        ->name('pdf')
+        ->breadcrumbs(fn (Trail $trail, $proposta) => $trail->parent('platform.propostas.index')->push("PDF Proposta #{$proposta->id}"));
+
+    // *** ROTAS KANBAN INSERIDAS AQUI ***
+
+    // Kanban de Propostas
+    Route::screen('kanban', PropostasKanbanScreen::class)
+        ->name('kanban')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.propostas.index')->push('Kanban'));
+
+    // POST para atualização do status do Kanban
+    Route::post('kanban/update', [PropostasKanbanScreen::class, 'updateStatus'])
+        ->name('kanban.update');
+});
+
+// --------------------------------------------------------------------------
+// LEADS (list, create, edit, kanban e update status)
+// --------------------------------------------------------------------------
+Route::prefix('leads')->name('platform.leads.')->group(function () {
+
+    // Listagem
+    Route::screen('/', LeadListScreen::class)
+        ->name('index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Leads'));
+
+    // Criação
+    Route::screen('create', LeadEditScreen::class)
+        ->name('create')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.leads.index')->push('Criar Lead'));
+
+    // Edição
+    Route::screen('{lead}/edit', LeadEditScreen::class)
+        ->name('edit')
+        ->breadcrumbs(fn (Trail $trail, $lead) => $trail->parent('platform.leads.index')->push("Lead #{$lead->id}"));
+
+    // Kanban
+    Route::screen('kanban', LeadKanbanScreen::class)
+        ->name('kanban')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.leads.index')->push('Kanban'));
+
+    // POST para atualização do status do Kanban
+    Route::post('kanban/update', [LeadKanbanScreen::class, 'updateStatus'])
+        ->name('kanban.update');
+});
+
+
+// --------------------------------------------------------------------------
+// EXEMPLOS (em grupo com prefixo e nome)
+// --------------------------------------------------------------------------
+Route::prefix('examples')->name('platform.example.')->group(function () {
+    Route::screen('form/fields', ExampleFieldsScreen::class)->name('fields');
+    Route::screen('form/advanced', ExampleFieldsAdvancedScreen::class)->name('advanced');
+    Route::screen('form/editors', ExampleTextEditorsScreen::class)->name('editors');
+    Route::screen('form/actions', ExampleActionsScreen::class)->name('actions');
+    Route::screen('layouts', ExampleLayoutsScreen::class)->name('layouts');
+    Route::screen('grid', ExampleGridScreen::class)->name('grid');
+    Route::screen('charts', ExampleChartsScreen::class)->name('charts');
+    Route::screen('cards', ExampleCardsScreen::class)->name('cards');
+    Route::screen('/', ExampleScreen::class)->name('index');
+
+
+
+
+    // routes/platform.php
+Route::post('propostas/calculate', [PropostasEditScreen::class, 'ajaxCalculate'])
+    ->name('platform.propostas.calculate');
+
+});

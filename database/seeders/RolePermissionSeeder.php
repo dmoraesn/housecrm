@@ -11,70 +11,53 @@ class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        // 🔹 ADMINISTRADOR
-        $admin = Role::firstOrCreate(
-            ['slug' => 'admin'],
+        // ADMINISTRADOR (slug padrão do Orchid)
+        $admin = Role::updateOrCreate(
+            ['slug' => 'administrator'], // CORRETO
             [
                 'name' => 'Administrador',
                 'permissions' => [
-                    'platform.systems' => true,
                     'platform.index' => true,
+                    'platform.systems' => true,
+                    'platform.systems.users' => true,
+                    'platform.systems.roles' => true,
                     'platform.leads' => true,
+                    'platform.leads.kanban' => true,
                     'platform.imoveis' => true,
                     'platform.contratos' => true,
                     'platform.propostas' => true,
                     'platform.comissoes' => true,
                     'platform.alugueis' => true,
                     'platform.construtoras' => true,
-                    'platform.users' => true,
+                    'platform.dashboard' => true,
                 ],
             ]
         );
 
-        // 🔹 IMOBILIÁRIA
-        $imobiliaria = Role::firstOrCreate(
-            ['slug' => 'imobiliaria'],
-            [
-                'name' => 'Imobiliária',
-                'permissions' => [
-                    'platform.leads' => true,
-                    'platform.imoveis' => true,
-                    'platform.contratos' => true,
-                    'platform.propostas' => true,
-                    'platform.comissoes' => true,
-                    'platform.alugueis' => true,
-                    'platform.construtoras' => true,
-                ],
-            ]
-        );
-
-        // 🔹 CORRETOR
-        $corretor = Role::firstOrCreate(
+        // CORRETOR
+        $corretor = Role::updateOrCreate(
             ['slug' => 'corretor'],
             [
                 'name' => 'Corretor',
                 'permissions' => [
+                    'platform.index' => true,
                     'platform.leads' => true,
+                    'platform.leads.kanban' => true,
                     'platform.imoveis' => true,
                     'platform.propostas' => true,
                     'platform.comissoes' => true,
+                    'platform.dashboard' => true,
                 ],
             ]
         );
 
-        // Usuários de exemplo
+        // USUÁRIOS
         $users = [
             [
                 'name' => 'Admin Master',
                 'email' => 'admin@housecrm.com',
                 'password' => 'password',
                 'role' => $admin,
-            ],
-            [
-                'name' => 'Imobiliária Central',
-                'email' => 'imob@housecrm.com',
-                'password' => 'password',
-                'role' => $imobiliaria,
             ],
             [
                 'name' => 'Corretor José',
@@ -85,20 +68,18 @@ class RolePermissionSeeder extends Seeder
         ];
 
         foreach ($users as $data) {
-            $user = User::firstOrCreate(
+            $user = User::updateOrCreate(
                 ['email' => $data['email']],
                 [
                     'name' => $data['name'],
                     'password' => Hash::make($data['password']),
+                    'email_verified_at' => now(),
                 ]
             );
 
-            // 🔸 Evita duplicar vínculos
-            if (!$user->roles()->where('role_id', $data['role']->id)->exists()) {
-                $user->addRole($data['role']);
-            }
+            $user->roles()->syncWithoutDetaching($data['role']);
         }
 
-        $this->command->info('✅ Roles e usuários verificados/criados com sucesso!');
+        $this->command->info('Admin: admin@housecrm.com / password');
     }
 }

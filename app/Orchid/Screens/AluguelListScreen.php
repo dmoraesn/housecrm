@@ -1,50 +1,62 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Orchid\Screens;
 
+use App\Models\Aluguel;
 use Orchid\Screen\Screen;
-use Orchid\Support\Facades\Layout;
 use Orchid\Screen\TD;
-use Orchid\Screen\Repository;
-use Orchid\Screen\Actions\Link;
+use Orchid\Support\Facades\Layout;
 
 class AluguelListScreen extends Screen
 {
-    public string $name = 'Aluguéis';
-    public string $description = 'Listagem e controle de contratos de aluguel.';
-
-    public function query(): iterable
+    public function query(): array
     {
-        // Exemplo estático — substitua por Aluguel::paginate() futuramente
         return [
-            'alugueis' => [
-                new Repository(['id' => 1, 'inquilino' => 'Carlos Souza', 'valor' => 'R$ 1.500']),
-                new Repository(['id' => 2, 'inquilino' => 'Fernanda Lima', 'valor' => 'R$ 2.100']),
-            ],
+            'alugueis' => Aluguel::with(['imovel', 'inquilino', 'corretor'])
+                ->orderBy('id', 'desc')
+                ->paginate(15),
         ];
     }
 
-    public function commandBar(): iterable
+    public function name(): string
+    {
+        return 'Aluguéis';
+    }
+
+    public function description(): string
+    {
+        return 'Listagem de contratos de aluguel';
+    }
+
+    public function commandBar(): array
     {
         return [
-            Link::make('Novo Aluguel')
+            \Orchid\Screen\Actions\Link::make('Novo Aluguel')
                 ->icon('plus')
                 ->route('platform.alugueis.create'),
         ];
     }
 
-    public function layout(): iterable
+    public function layout(): array
     {
         return [
             Layout::table('alugueis', [
-                TD::make('id', 'ID'),
-                TD::make('inquilino', 'Inquilino')->render(fn($a) =>
-                    Link::make($a->inquilino)
-                        ->route('platform.alugueis.edit', $a->id)
-                ),
-                TD::make('valor', 'Valor'),
+                TD::make('imovel.titulo', 'Imóvel')
+                    ->render(fn($a) => $a->imovel?->titulo ?? '—'),
+                TD::make('inquilino.name', 'Inquilino')
+                    ->render(fn($a) => $a->inquilino?->name ?? '—'),
+                TD::make('valor_mensal', 'Valor Mensal')
+                    ->render(fn($a) => 'R$ ' . number_format($a->valor_mensal, 2, ',', '.')),
+                TD::make('data_inicio', 'Início')
+                    ->render(fn($a) => $a->data_inicio?->format('d/m/Y') ?? '—'),
+                TD::make('status')
+                    ->render(fn($a) => $a->getStatusBadge()),
+                TD::make()
+                    ->render(fn($a) => 
+                        \Orchid\Screen\Actions\Link::make('Editar')
+                            ->route('platform.alugueis.edit', $a)
+                            ->icon('pencil')
+                    ),
             ]),
         ];
     }
