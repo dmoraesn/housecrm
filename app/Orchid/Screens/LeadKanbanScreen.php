@@ -1,80 +1,117 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Orchid\Screens;
 
-use Orchid\Screen\Screen;
 use App\Models\Lead;
-use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Link;
+use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LeadKanbanScreen extends Screen
 {
-    /**
-     * Nome e descrição
-     */
-    public $name = 'Leads';
-    public $description = 'Funil de Vendas (Kanban)';
+    private const STATUS_OPTIONS = [
+        'novo'         => 'Novo',
+        'qualificacao' => 'Qualificação',
+        'visita'       => 'Visita',
+        'negociacao'   => 'Negociação',
+        'fechamento'   => 'Fechamento',
+        'perdido'      => 'Perdido',
+    ];
 
-    /**
-     * Consulta inicial
-     */
+    public function name(): string
+    {
+        return 'Kanban de Leads';
+    }
+
+    public function description(): string
+    {
+        return 'Visualize e organize os leads por etapa do funil.';
+    }
+
+    public function permission(): ?iterable
+    {
+        return ['platform.leads'];
+    }
+
     public function query(): array
     {
-        $stages = [
-            'novo'         => 'Novo Lead / Descoberta',
-            'qualificacao' => 'Qualificação / Entendimento',
-            'visita'       => 'Apresentação / Visita',
-            'negociacao'   => 'Proposta / Negociação',
-            'fechamento'   => 'Fechamento / Contrato',
-        ];
-
-        $leads = Lead::all()->groupBy('status');
-
-        // Garante que todos os estágios existam, mesmo vazios
-        foreach (array_keys($stages) as $key) {
-            if (!isset($leads[$key])) {
-                $leads[$key] = collect();
-            }
-        }
+        $leads = Lead::with(['corretor', 'propostas', 'contratos'])
+            ->orderBy('order')
+            ->get()
+            ->groupBy('status');
 
         return [
-            'stages' => $stages,
-            'leads'  => $leads,
+            'leads'    => $leads,
+            'statuses' => self::STATUS_OPTIONS,
         ];
     }
 
-    /**
-     * Barra de comandos superior
-     */
-    public function commandBar(): array
+    public function commandBar(): iterable
     {
         return [
             Link::make('Novo Lead')
-                ->icon('plus')
+                ->icon('bs.plus')
                 ->route('platform.leads.create'),
         ];
     }
 
-    /**
-     * Layout principal
-     */
-    public function layout(): array
+    public function layout(): iterable
     {
         return [
-            Layout::view('platform::leads.kanban'),
+            Layout::view('platform.leads.kanban'),
         ];
     }
 
-    /**
-     * Atualiza o status de um lead via AJAX (drag & drop)
-     */
     public function updateStatus(Request $request)
     {
-        $lead = Lead::findOrFail($request->id);
-        $lead->status = $request->status;
-        $lead->save();
+        $request->validate([
+            'id'     => 'required|integer|exists:leads,id',
+            'status' => 'required|string|in:' . implode(',', array_keys(self::STATUS_OPTIONS)),
+            'order'  => 'required|integer|min:0',
+        ]);
 
-        return response()->json(['success' => true]);
+        try {
+            DB::transaction(function () use ($request) {
+                $lead = Lead::findOrFail($request->id);
+                $oldStatus = $lead->status;
+                $oldOrder = $lead->order;
+                $newStatus = $request->status;
+                $newOrder = $request->order;
+
+                if ($oldStatus === $newStatus && $oldOrder === $newOrder) {
+                    return;
+                }
+
+                if ($oldStatus === $newStatus) {
+                    if ($newOrder > $oldOrder) {
+                        Lead::where('status', $oldStatus)
+                            ->whereBetween('order', [$oldOrder + 1, $newOrder])
+                            ->decrement('order');
+                    } else {
+                        Lead::where('status', $oldStatus)
+                            ->whereBetween('order', [$newOrder, $oldOrder - 1])
+                            ->increment('order');
+                    }
+                } else {
+                    Lead::where('status', $oldStatus)
+                        ->where('order', '>', $oldOrder)
+                        ->decrement('order');
+                    Lead::where('status', $newStatus)
+                        ->where('order', '>=', $newOrder)
+                        ->increment('order');
+                }
+
+                $lead->status = $newStatus;
+                $lead->order = $newOrder;
+                $lead->save();
+            });
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }
