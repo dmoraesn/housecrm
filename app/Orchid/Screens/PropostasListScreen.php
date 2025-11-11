@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Orchid\Screens;
 
-// 1. ADICIONE ESTE "USE"
 use Illuminate\Support\HtmlString;
 use Orchid\Screen\Screen;
 use Orchid\Screen\Actions\Link;
@@ -17,11 +18,7 @@ class PropostasListScreen extends Screen
 
     public function commandBar(): array
     {
-        return [
-            Link::make('Nova Proposta')
-                ->icon('bs.plus')
-                ->route('platform.propostas.create')
-        ];
+        return [];
     }
 
     public function query(): array
@@ -62,13 +59,9 @@ class PropostasListScreen extends Screen
                     ->render(function ($p) {
                         $v = $p->valor_restante ?? 0;
                         $c = $v > 0.01 ? 'text-danger' : ($v < -0.01 ? 'text-warning' : 'text-success');
-                        
                         $html = "<span class='{$c} font-weight-bold'>R$ " . number_format($v, 2, ',', '.') . "</span>";
-
-                        // 2. RETORNE A STRING HTML DESTA FORMA
                         return new HtmlString($html);
                     }),
-                    // 3. REMOVA A LINHA ->asHtml() DAQUI
 
                 TD::make('created_at', 'Criada')
                     ->sort()

@@ -22,13 +22,14 @@ class LeadSeeder extends Seeder
 
         for ($i = 1; $i <= 20; $i++) {
             Lead::create([
-                'nome'     => "Lead {$i}",
-                'email'    => "lead{$i}@example.com",
+                'nome' => "Lead {$i}",
+                'email' => "lead{$i}@example.com",
                 'telefone' => '(85) 9' . rand(8000, 9999) . '-' . rand(1000, 9999),
-                'origem'   => Arr::random($origens),
+                'origem' => Arr::random($origens),
                 'mensagem' => 'Interesse em imóvel ' . rand(100, 999),
-                'status'   => Arr::random($statusList),
-                'user_id'  => $corretores->count() > 0 ? $corretores->random()->id : null,
+                'status' => Arr::random($statusList),
+                'user_id' => $corretores->count() > 0 ? $corretores->random()->id : null,
+                'valor_interesse' => rand(100000, 1000000) / 100,
             ]);
         }
 
