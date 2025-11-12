@@ -1,7 +1,8 @@
 import Sortable from 'sortablejs';
 
 const initializeKanban = () => {
-    document.addEventListener('turbo:load', () => {
+   document.addEventListener('DOMContentLoaded', () => {
+
         if (!window.Sortable) {
             console.error('[Kanban] SortableJS não encontrado. Verifique a importação.');
             return;
