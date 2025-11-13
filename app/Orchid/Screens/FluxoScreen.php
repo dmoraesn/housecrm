@@ -1,51 +1,66 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Orchid\Screens;
 
 use App\Models\Fluxo;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 use Orchid\Screen\Screen;
-use Orchid\Screen\Fields\Input;
-use Orchid\Screen\Fields\Matrix;
-use Orchid\Screen\Fields\Group;
-use Orchid\Screen\Fields\TextArea;
 use Orchid\Support\Facades\Layout;
+use Orchid\Screen\Fields\Input;
+use Orchid\Screen\Fields\Group;
+use Orchid\Screen\Fields\Matrix;
+use Orchid\Screen\Fields\TextArea;
+use Orchid\Screen\Fields\Relation;
+use Orchid\Screen\Fields\RadioButtons;
 use Orchid\Screen\Actions\Button;
 use Orchid\Support\Facades\Toast;
 
+/**
+ * Classe responsável pela tela de fluxo financeiro (Pro Soluto)
+ * com cálculo automático de financiamento, parcelas e entrada.
+ * 
+ * Agora com toggle para selecionar modo de cálculo:
+ * - Percentual: calcula o valor financiado a partir do percentual informado.
+ * - Manual: calcula o percentual a partir do valor financiado informado.
+ */
 class FluxoScreen extends Screen
 {
     /**
-     * Título principal da tela.
+     * Nome da tela.
+     *
+     * @var string
      */
     public $name = 'Plano de Pagamento de Entrada';
 
     /**
-     * Descrição auxiliar.
+     * Descrição da tela.
+     *
+     * @var string
      */
-    public $description = 'Calculadora financeira para fluxo de entrada (Pro Soluto) com sugestão automática de financiamento.';
+    public $description = 'Calculadora financeira para fluxo de entrada (Pro Soluto) com sugestão automática de financiamento e controle de cálculo via toggle.';
 
     /**
-     * Carrega o fluxo existente ou inicializa um novo.
+     * Query inicial com dados.
      */
     public function query(Fluxo $fluxo): array
     {
         return [
             'fluxo' => $fluxo,
-            'lead'  => $fluxo->lead ?? null,
+            'lead' => $fluxo->lead ?? null,
         ];
     }
 
     /**
-     * Barra de comandos superiores (ações).
+     * Barra de ações da tela.
      */
     public function commandBar(): array
     {
         return [
             Button::make('Adicionar Lead')
                 ->icon('bs.person-plus')
-                ->novalidate()
                 ->method('addLead'),
 
             Button::make('Salvar Rascunho')
@@ -58,22 +73,40 @@ class FluxoScreen extends Screen
                 ->icon('bs.check')
                 ->method('saveFluxo')
                 ->parameters(['status' => 'completed']),
+
+            Button::make('Novo Fluxo')
+                ->icon('bs.arrow-clockwise')
+                ->novalidate()
+                ->method('resetFluxo'),
         ];
     }
 
     /**
-     * Estrutura de layout da tela.
+     * Layout principal da tela de fluxo.
      */
     public function layout(): array
     {
-        $highlightReadOnly = 'readonly-highlight bg-light border-primary fw-semibold text-primary';
+        $readonlyStyle = 'readonly-highlight bg-light border-primary fw-semibold text-primary';
 
         return [
-            /**
-             * 1️⃣ Resumo do Imóvel e Financiamento
-             */
+
+            // ===============================================================
+            // 1. LEAD ASSOCIADO
+            // ===============================================================
+            Layout::rows([
+                Relation::make('fluxo.lead_id')
+                    ->title('Lead Associado')
+                    ->fromModel(Lead::class, 'nome', 'id')
+                    ->placeholder('Selecione um lead existente para vincular a este fluxo.')
+                    ->help('O lead vinculado será associado ao cálculo financeiro deste fluxo.'),
+            ]),
+
+            // ===============================================================
+            // 2. RESUMO DO IMÓVEL E FINANCIAMENTO
+            // ===============================================================
             Layout::rows([
                 Group::make([
+
                     Input::make('fluxo.valor_imovel')
                         ->title('Valor do Imóvel')
                         ->id('valor_imovel')
@@ -83,7 +116,8 @@ class FluxoScreen extends Screen
                             'groupSeparator' => '.',
                             'radixPoint' => ',',
                             'digits' => 2,
-                        ]),
+                        ])
+                        ->help('Valor total do imóvel conforme contrato.'),
 
                     Input::make('fluxo.valor_avaliacao')
                         ->title('Valor de Avaliação')
@@ -94,14 +128,30 @@ class FluxoScreen extends Screen
                             'groupSeparator' => '.',
                             'radixPoint' => ',',
                             'digits' => 2,
-                        ]),
+                        ])
+                        ->help('Avaliação feita pela instituição financeira.'),
+                ]),
 
-                    Input::make('fluxo.valor_financiamento_sugerido')
-                        ->title('Financiamento Máximo (80%)')
-                        ->id('valor_financiamento_sugerido')
-                        ->class($highlightReadOnly)
-                        ->readonly()
-                        ->help('Calculado automaticamente com base na avaliação.'),
+                RadioButtons::make('fluxo.modo_calculo')
+                    ->title('Modo de Cálculo do Financiamento')
+                    ->options([
+                        'percentual' => 'Calcular pelo Percentual',
+                        'manual' => 'Definir Valor Manualmente',
+                    ])
+                    ->value('percentual')
+                    ->id('modo_calculo')
+                    ->help('Escolha como deseja calcular o valor do financiamento.'),
+
+                Group::make([
+                    Input::make('fluxo.financiamento_percentual')
+                        ->title('Financiamento (%)')
+                        ->id('financiamento_percentual')
+                        ->type('number')
+                        ->min(10)
+                        ->max(100)
+                        ->step(1)
+                        ->value(80)
+                        ->help('Percentual de financiamento baseado no valor de avaliação.'),
 
                     Input::make('fluxo.valor_financiado')
                         ->title('Valor Financiado')
@@ -113,29 +163,12 @@ class FluxoScreen extends Screen
                             'radixPoint' => ',',
                             'digits' => 2,
                         ])
-                        ->help('Valor efetivo financiado (editável).'),
-
-                    Input::make('fluxo.valor_bonus_descontos')
-                        ->title('Bônus / Descontos / FGTS')
-                        ->id('valor_bonus_descontos')
-                        ->mask([
-                            'alias' => 'currency',
-                            'prefix' => 'R$ ',
-                            'groupSeparator' => '.',
-                            'radixPoint' => ',',
-                            'digits' => 2,
-                        ]),
+                        ->help('Valor efetivo financiado. Calculado automaticamente ou editável conforme o modo.'),
                 ])->fullWidth(),
-            ])->title('1. Resumo do Imóvel e Financiamento'),
 
-            /**
-             * 2️⃣ Entrada mínima necessária
-             */
-            Layout::rows([
-                Input::make('fluxo.entrada_minima')
-                    ->title('Entrada Mínima Necessária')
-                    ->id('entrada_minima')
-                    ->class($highlightReadOnly . ' text-danger')
+                Input::make('fluxo.valor_bonus_descontos')
+                    ->title('Bônus / Descontos / FGTS')
+                    ->id('valor_bonus_descontos')
                     ->mask([
                         'alias' => 'currency',
                         'prefix' => 'R$ ',
@@ -143,15 +176,32 @@ class FluxoScreen extends Screen
                         'radixPoint' => ',',
                         'digits' => 2,
                     ])
+                    ->help('Valores de FGTS, descontos e bônus aplicáveis.'),
+            ])->title('1. Resumo do Imóvel e Financiamento'),
+
+            // ===============================================================
+            // 3. ENTRADA MÍNIMA
+            // ===============================================================
+            Layout::rows([
+                Input::make('fluxo.entrada_minima')
+                    ->title('Entrada Mínima Necessária')
+                    ->id('entrada_minima')
                     ->readonly()
+                    ->class($readonlyStyle . ' text-danger')
+                    ->mask([
+                        'alias' => 'currency',
+                        'prefix' => 'R$ ',
+                        'groupSeparator' => '.',
+                        'radixPoint' => ',',
+                        'digits' => 2,
+                    ])
                     ->help('Calculada automaticamente: Imóvel - Financiamento - Descontos.'),
             ]),
 
-            /**
-             * 3️⃣ Assinatura, Chaves e Balões
-             */
+            // ===============================================================
+            // 4. VALORES ALTOS E BALÕES
+            // ===============================================================
             Layout::columns([
-                // Valores altos fixos
                 Layout::rows([
                     Input::make('fluxo.valor_assinatura_contrato')
                         ->title('Assinatura do Contrato')
@@ -162,7 +212,8 @@ class FluxoScreen extends Screen
                             'groupSeparator' => '.',
                             'radixPoint' => ',',
                             'digits' => 2,
-                        ]),
+                        ])
+                        ->help('Valor pago na assinatura do contrato.'),
 
                     Input::make('fluxo.valor_na_chaves')
                         ->title('Entrega das Chaves')
@@ -173,10 +224,10 @@ class FluxoScreen extends Screen
                             'groupSeparator' => '.',
                             'radixPoint' => ',',
                             'digits' => 2,
-                        ]),
+                        ])
+                        ->help('Valor pago na entrega das chaves.'),
                 ])->title('2. Valores Altos (Assinatura e Chaves)'),
 
-                // Balões de pagamento
                 Layout::rows([
                     Matrix::make('fluxo.baloes')
                         ->title('Balões de Pagamento')
@@ -190,26 +241,28 @@ class FluxoScreen extends Screen
                                 'radixPoint' => ',',
                                 'digits' => 2,
                             ]),
-                        ]),
+                        ])
+                        ->help('Adicione balões de pagamento personalizados.'),
                 ])->title('3. Balões de Pagamento'),
             ]),
 
-            /**
-             * 4️⃣ Parcelamento e totais
-             */
+            // ===============================================================
+            // 5. PARCELAMENTO
+            // ===============================================================
             Layout::columns([
                 Layout::rows([
                     Group::make([
                         Input::make('fluxo.parcelas_qtd')
                             ->title('Número de Parcelas')
                             ->id('parcelas_qtd')
-                            ->type('number'),
+                            ->type('number')
+                            ->help('Quantidade de parcelas da entrada.'),
 
                         Input::make('fluxo.valor_parcela')
                             ->title('Valor por Parcela')
                             ->id('valor_parcela')
-                            ->class($highlightReadOnly)
                             ->readonly()
+                            ->class($readonlyStyle)
                             ->mask([
                                 'alias' => 'currency',
                                 'prefix' => 'R$ ',
@@ -222,8 +275,8 @@ class FluxoScreen extends Screen
                     Input::make('fluxo.total_parcelamento')
                         ->title('Total do Parcelamento')
                         ->id('total_parcelamento')
-                        ->class($highlightReadOnly)
                         ->readonly()
+                        ->class($readonlyStyle)
                         ->mask([
                             'alias' => 'currency',
                             'prefix' => 'R$ ',
@@ -237,8 +290,8 @@ class FluxoScreen extends Screen
                     Input::make('fluxo.valor_total_entrada')
                         ->title('Valor Total da Entrada')
                         ->id('valor_total_entrada')
-                        ->class($highlightReadOnly)
                         ->readonly()
+                        ->class($readonlyStyle)
                         ->mask([
                             'alias' => 'currency',
                             'prefix' => 'R$ ',
@@ -250,8 +303,8 @@ class FluxoScreen extends Screen
                     Input::make('fluxo.valor_restante')
                         ->title('Valor Restante (Geral)')
                         ->id('valor_restante')
-                        ->class($highlightReadOnly)
                         ->readonly()
+                        ->class($readonlyStyle)
                         ->mask([
                             'alias' => 'currency',
                             'prefix' => 'R$ ',
@@ -262,46 +315,47 @@ class FluxoScreen extends Screen
                 ])->title('Resumo da Entrada'),
             ]),
 
-            /**
-             * 5️⃣ Observações
-             */
             Layout::rows([
                 TextArea::make('fluxo.observacao')
                     ->title('5. Observações')
-                    ->rows(5),
+                    ->rows(5)
+                    ->help('Notas adicionais sobre este fluxo.'),
             ]),
 
-            /**
-             * Inclui os visuais JS e o topo flutuante
-             */
             Layout::view('orchid.fluxo-topo'),
             Layout::view('orchid.fluxo-calculo-js'),
         ];
     }
 
-    /**
-     * Método de salvamento do fluxo (rascunho ou final).
-     */
     public function saveFluxo(Request $request)
     {
-        $status = $request->get('status', 'completed');
-        $data = $request->get('fluxo');
-        $data['status'] = $status;
+        $dados = $request->get('fluxo');
+        $dados['status'] = $request->get('status', 'completed');
+        Fluxo::updateOrCreate(['id' => $dados['id'] ?? null], $dados);
+        Toast::info('Fluxo salvo com sucesso!');
+    }
 
-        Fluxo::updateOrCreate(['id' => $data['id'] ?? null], $data);
+    public function addLead(Request $request)
+    {
+        $leadId = $request->input('fluxo.lead_id');
+        $fluxoId = $request->input('fluxo.id');
 
-        if ($status === 'draft') {
-            Toast::info('Rascunho do fluxo salvo com sucesso!');
-        } else {
-            Toast::info('Fluxo finalizado e salvo com sucesso!');
+        if (!$leadId) {
+            Toast::warning('Selecione um lead para vincular.');
+            return;
+        }
+
+        $fluxo = Fluxo::find($fluxoId);
+        if ($fluxo) {
+            $fluxo->lead_id = $leadId;
+            $fluxo->save();
+            Toast::info('Lead vinculado com sucesso!');
         }
     }
 
-    /**
-     * Exemplo de método de Lead (simulado).
-     */
-    public function addLead(Request $request)
+    public function resetFluxo()
     {
-        Toast::info('Funcionalidade de Adicionar Lead acionada.');
+        Toast::info('Fluxo reiniciado.');
+        return redirect()->route('platform.fluxo.create');
     }
 }
