@@ -1,10 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Modelo responsável por armazenar e gerenciar o fluxo financeiro (Pro Soluto)
@@ -13,6 +15,13 @@ use Illuminate\Database\Eloquent\Model;
 class Fluxo extends Model
 {
     use HasFactory;
+
+    /**
+     * Constantes para statuses do fluxo.
+     */
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELADO = 'cancelado';
 
     /**
      * Tabela vinculada ao modelo.
@@ -43,6 +52,7 @@ class Fluxo extends Model
         'financiamento_percentual',
         'base_calculo',
         'modo_calculo',
+        'baloes', // Adicionado para Matrix de balões
         'observacao',
         'status',
     ];
@@ -53,36 +63,37 @@ class Fluxo extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'valor_imovel' => 'float',
-        'valor_avaliacao' => 'float',
-        'valor_financiado' => 'float',
-        'valor_bonus_descontos' => 'float',
-        'valor_assinatura_contrato' => 'float',
-        'valor_na_chaves' => 'float',
-        'entrada_minima' => 'float',
-        'valor_parcela' => 'float',
-        'total_parcelamento' => 'float',
-        'valor_total_entrada' => 'float',
-        'valor_restante' => 'float',
-        'financiamento_percentual' => 'float',
+        'valor_imovel' => 'decimal:2',
+        'valor_avaliacao' => 'decimal:2',
+        'valor_financiado' => 'decimal:2',
+        'valor_bonus_descontos' => 'decimal:2',
+        'valor_assinatura_contrato' => 'decimal:2',
+        'valor_na_chaves' => 'decimal:2',
+        'entrada_minima' => 'decimal:2',
+        'valor_parcela' => 'decimal:2',
+        'total_parcelamento' => 'decimal:2',
+        'valor_total_entrada' => 'decimal:2',
+        'valor_restante' => 'decimal:2',
+        'financiamento_percentual' => 'decimal:0', // Percentual inteiro ou com casas?
+        'baloes' => 'array', // Para serialização JSON automática
     ];
 
     /**
      * Relacionamento: Fluxo pertence a um Lead.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     * @return BelongsTo
      */
-    public function lead()
+    public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
     }
 
     /**
-     * Escopo auxiliar para fluxos ativos.
+     * Escopo auxiliar para fluxos ativos (exclui cancelados).
      */
     public function scopeAtivos($query)
     {
-        return $query->where('status', '!=', 'cancelado');
+        return $query->where('status', '!=', self::STATUS_CANCELADO);
     }
 
     /**
@@ -90,6 +101,53 @@ class Fluxo extends Model
      */
     public function scopeConcluidos($query)
     {
-        return $query->where('status', 'completed');
+        return $query->where('status', self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Escopo auxiliar para fluxos em rascunho (novo, para consistência).
+     */
+    public function scopeRascunhos($query)
+    {
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
+    // Acessors para formatação BRL (exemplo para campos principais; expanda se necessário)
+
+    /**
+     * Acessor: Valor do imóvel formatado em BRL.
+     */
+    public function getValorImovelFormattedAttribute(): string
+    {
+        return $this->formatBrl($this->valor_imovel);
+    }
+
+    /**
+     * Acessor: Valor de avaliação formatado em BRL.
+     */
+    public function getValorAvaliacaoFormattedAttribute(): string
+    {
+        return $this->formatBrl($this->valor_avaliacao);
+    }
+
+    /**
+     * Acessor: Entrada mínima formatada em BRL.
+     */
+    public function getEntradaMinimaFormattedAttribute(): string
+    {
+        return $this->formatBrl($this->entrada_minima);
+    }
+
+    // Adicione mais acessors semelhantes para outros campos monetários...
+
+    /**
+     * Função auxiliar para formatar valor em BRL.
+     *
+     * @param float|null $value
+     * @return string
+     */
+    protected function formatBrl($value): string
+    {
+        return 'R$ ' . number_format((float) $value, 2, ',', '.');
     }
 }

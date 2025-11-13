@@ -1,6 +1,7 @@
 <script src="https://unpkg.com/feather-icons"></script>
 
 <style>
+    /* Estilos inalterados */
     .floating-calc-notification {
         position: fixed;
         bottom: 20px;
@@ -61,6 +62,9 @@
 
     <div id="calcDetails">
         <span id="saldoRestanteTopo" class="saldo-principal text-primary">R$ 0,00</span>
+        <div class="small text-muted">Entrada Mínima: <!-- Novo -->
+            <span id="entradaMinima" class="badge-light">R$ 0,00</span>
+        </div>
         <div class="small text-muted">Dif. Avaliação:
             <span id="difAvaliacao" class="badge-light">R$ 0,00</span>
         </div>
@@ -72,7 +76,7 @@
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => { // Inalterado, pois este é standalone
     feather.replace();
 
     const notification = document.getElementById('calcNotification');
