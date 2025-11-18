@@ -7,12 +7,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Orchid\Screen\AsSource;
-use Orchid\Filters\Filterable;   // ← ADICIONADO
-use Orchid\Filters\Types\Like;  // ← OPCIONAL (para busca por nome/cnpj)
+use Orchid\Filters\Filterable;
+use Orchid\Filters\Types\Like;
 
 class Construtora extends Model
 {
-    use HasFactory, AsSource, Filterable;  // ← Filterable adicionado aqui
+    use HasFactory, AsSource, Filterable;
 
     protected $table = 'construtoras';
 
@@ -56,6 +56,21 @@ class Construtora extends Model
         'cnpj',
         'created_at',
     ];
+
+    // =============================================================
+    // SCOPES
+    // =============================================================
+
+    /**
+     * Scope para retornar apenas construtoras ativas (status = true).
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeAtivas($query)
+    {
+        return $query->where('status', true);
+    }
 
     // =============================================================
     // BOOT → proteção contra CNPJ duplicado
@@ -111,10 +126,10 @@ class Construtora extends Model
     public function getSituacaoBadgeAttribute(): string
     {
         return match (strtoupper($this->situacao ?? '')) {
-            'ATIVA'                  => '<span class="badge badge-success">Ativa</span>',
-            'BAIXADA', 'CANCELADA'   => '<span class="badge badge-danger">Baixada</span>',
-            'INAPTA', 'SUSPENSA'     => '<span class="badge badge-warning">Inapta/Suspensa</span>',
-            default                  => '<span class="badge badge-secondary">Desconhecida</span>',
+            'ATIVA'               => '<span class="badge badge-success">Ativa</span>',
+            'BAIXADA', 'CANCELADA' => '<span class="badge badge-danger">Baixada</span>',
+            'INAPTA', 'SUSPENSA'  => '<span class="badge badge-warning">Inapta/Suspensa</span>',
+            default               => '<span class="badge badge-secondary">Desconhecida</span>',
         };
     }
 
