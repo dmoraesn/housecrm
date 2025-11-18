@@ -14,6 +14,14 @@ class Fluxo extends Model
 {
     use HasFactory;
 
+    // ===================================================================
+    // CONSTANTES DE STATUS (CORREÇÃO CRÍTICA)
+    // ===================================================================
+    public const STATUS_DRAFT = 'rascunho';
+    public const STATUS_COMPLETED = 'concluido';
+    public const STATUS_CANCELLED = 'cancelado';
+
+
     /**
      * Tabela vinculada ao modelo.
      *
@@ -28,6 +36,7 @@ class Fluxo extends Model
      */
     protected $fillable = [
         'lead_id',
+        'construtora_id', // Adicionado: Faltava no $fillable, mas é usado no Screen
         'valor_imovel',
         'valor_avaliacao',
         'valor_financiado',
@@ -45,6 +54,7 @@ class Fluxo extends Model
         'modo_calculo',
         'observacao',
         'status',
+        'baloes', // Adicionado: Faltava no $fillable, mas é usado no Screen (Matrix)
     ];
 
     /**
@@ -53,6 +63,7 @@ class Fluxo extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'baloes' => 'array', // Corrigido para array
         'valor_imovel' => 'float',
         'valor_avaliacao' => 'float',
         'valor_financiado' => 'float',
@@ -74,7 +85,15 @@ class Fluxo extends Model
      */
     public function lead()
     {
-        return $this->belongsTo(Lead::class);
+        return $this->belongsTo(\App\Models\Lead::class);
+    }
+
+    /**
+     * Relacionamento: Fluxo pertence a uma Construtora.
+     */
+    public function construtora()
+    {
+        return $this->belongsTo(\App\Models\Construtora::class);
     }
 
     /**
@@ -82,7 +101,7 @@ class Fluxo extends Model
      */
     public function scopeAtivos($query)
     {
-        return $query->where('status', '!=', 'cancelado');
+        return $query->where('status', '!=', self::STATUS_CANCELLED);
     }
 
     /**
@@ -90,6 +109,7 @@ class Fluxo extends Model
      */
     public function scopeConcluidos($query)
     {
-        return $query->where('status', 'completed');
+        return $query->where('status', self::STATUS_COMPLETED);
     }
 }
+// 93 linhas mantidas
