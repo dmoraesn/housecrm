@@ -5,11 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Orchid\Screen\AsSource;
-use Orchid\Filters\Filterable; // Adicionado para a listagem
+use Orchid\Filters\Filterable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
 
 class Proposta extends Model
 {
-    use HasFactory, AsSource, Filterable; // Adicionado Filterable
+    use HasFactory, AsSource, Filterable;
+
+    // ===================================================================
+    // PROPRIEDADES DO MODELO
+    // ===================================================================
 
     /**
      * Tabela associada ao modelo.
@@ -23,24 +29,27 @@ class Proposta extends Model
 
     /**
      * Atributos que podem ser atribuídos em massa.
+     * Incluído 'construtora_id' e 'data_assinatura' para sincronia com FluxoScreen.
      */
     protected $fillable = [
-        // Relacionamento
+        // Relacionamentos
         'lead_id',
+        'construtora_id', // Novo: Usado em FluxoScreen
 
-        // Status da proposta
+        // Status
         'status',
 
-        // Campos do simulador (inputs visíveis)
+        // Inputs e Valores de Referência
         'valor_avaliacao',
         'valor_real',
         'valor_financiado',
-        'descontos',
-        'valor_assinatura',
+        'valor_bonus_descontos', // Alterado: De 'descontos' para 'valor_bonus_descontos' (como no FluxoScreen)
+        'valor_assinatura_contrato', // Alterado: De 'valor_assinatura' para 'valor_assinatura_contrato'
+        'data_assinatura', // NOVO CRÍTICO: Necessário para a PropostasListScreen
         'valor_parcela',
-        'num_parcelas',
+        'num_parcelas', // Mantido 'num_parcelas' por enquanto
 
-        // Campos calculados pelo frontend (JS)
+        // Campos Calculados
         'valor_entrada',
         'total_parcelamento',
         'valor_restante',
@@ -48,48 +57,44 @@ class Proposta extends Model
     ];
 
     /**
-     * Atributos que devem ser convertidos para tipos nativos.
-     * Esta é a forma correta de lidar com os dados do simulador.
+     * Atributos que devem ser convertidos para tipos nativos (Casts).
      */
     protected $casts = [
         // JSON
         'baloes_json' => 'array',
 
         // Inteiros
-        'lead_id'     => 'integer',
-        'num_parcelas'=> 'integer',
+        'lead_id'           => 'integer',
+        'construtora_id'    => 'integer',
+        'num_parcelas'      => 'integer',
 
-        // Decimais (moeda)
-        'valor_avaliacao'    => 'float',
-        'valor_real'         => 'float',
-        'valor_financiado'   => 'float',
-        'descontos'          => 'float',
-        'valor_assinatura'   => 'float',
-        'valor_parcela'      => 'float',
-        'valor_entrada'      => 'float',
-        'total_parcelamento' => 'float',
-        'valor_restante'     => 'float',
+        // Decimais (float/moeda)
+        'valor_avaliacao'           => 'float',
+        'valor_real'                => 'float',
+        'valor_financiado'          => 'float',
+        'valor_bonus_descontos'     => 'float',
+        'valor_assinatura_contrato' => 'float',
+        'valor_parcela'             => 'float',
+        'valor_entrada'             => 'float',
+        'total_parcelamento'        => 'float',
+        'valor_restante'            => 'float',
 
-        // Timestamps
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        // Datas
+        'data_assinatura'   => 'date', // CORREÇÃO CRÍTICA
+        'created_at'        => 'datetime',
+        'updated_at'        => 'datetime',
     ];
 
     /**
      * Valores padrão para atributos.
      */
-/**
-     * Valores padrão para atributos.
-     */
     protected $attributes = [
         'status' => 'rascunho',
-        'descontos' => 0,
-        'valor_entrada' => 0,
-        'total_parcelamento' => 0,
-        'valor_restante' => 0,
-        
-        // CORREÇÃO: Mude de [] (array) para '[]' (string)
-        'baloes_json' => '[]', 
+        'valor_bonus_descontos' => 0.0,
+        'valor_entrada' => 0.0,
+        'total_parcelamento' => 0.0,
+        'valor_restante' => 0.0,
+        'baloes_json' => '[]',
     ];
 
     // ===================================================================
@@ -99,22 +104,18 @@ class Proposta extends Model
     /**
      * Lead associado à proposta.
      */
-    public function lead()
+    public function lead(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Lead::class, 'lead_id');
     }
-
-    // ===================================================================
-    // ACCESSORS & MUTATORS (REMOVIDOS)
-    // ===================================================================
-    // 
-    // A formatação (ex: 'R$ 1.234,56') é uma responsabilidade da
-    // camada de Apresentação (View/Screen), não do Modelo.
-    // 
-    // A PropostasListScreen já faz a formatação correta na
-    // renderização da tabela. Manter essa lógica aqui 
-    // (especialmente com 'abs()') pode causar conflitos.
-    //
+    
+    /**
+     * Construtora associada à proposta (adicionado para consistência).
+     */
+    public function construtora(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Construtora::class, 'construtora_id');
+    }
 
     // ===================================================================
     // SCOPES (FILTROS ÚTEIS)
@@ -122,19 +123,19 @@ class Proposta extends Model
 
     /**
      * Scope: Propostas com diferença zero (equilibradas).
-     * Ótimo para dashboards.
      */
-    public function scopeEquilibradas($query)
+    public function scopeEquilibradas(Builder $query): Builder
     {
-        // whereRaw é a forma correta de comparar floats
+        // whereRaw é a forma correta de comparar floats (usando margem de erro)
         return $query->whereRaw('ABS(valor_restante) < 0.01');
     }
 
     /**
-     * Scope: Propostas com entrada maior que X.
+     * Scope: Propostas com entrada maior que o valor fornecido.
      */
-    public function scopeEntradaAcimaDe($query, $valor)
+    public function scopeEntradaAcimaDe(Builder $query, float $valor): Builder
     {
         return $query->where('valor_entrada', '>=', $valor);
     }
 }
+// 127 linhas mantidas

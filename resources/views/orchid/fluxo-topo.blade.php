@@ -61,12 +61,17 @@
 
     <div id="calcDetails">
         <span id="saldoRestanteTopo" class="saldo-principal text-primary">R$ 0,00</span>
-        <div class="small text-muted">Dif. Avaliação:
+
+        <div class="small text-muted">
+            Dif. Avaliação:
             <span id="difAvaliacao" class="badge-light">R$ 0,00</span>
         </div>
-        <div class="small text-muted mt-1">Financ. Corrigido:
+
+        <div class="small text-muted mt-1">
+            Financ. Corrigido:
             <span id="finCorrigido" class="badge-light text-success">R$ 0,00</span>
         </div>
+
         <div class="text-muted small mt-2">Atualizado em tempo real.</div>
     </div>
 </div>
@@ -93,6 +98,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     toggleButton.addEventListener('click', toggleMinimize);
-    saldoTopo.addEventListener('click', () => { if (isMinimized) toggleMinimize(); });
+
+    saldoTopo.addEventListener('click', () => {
+        if (isMinimized) toggleMinimize();
+    });
 });
 </script>
