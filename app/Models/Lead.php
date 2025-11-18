@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder; // Importação adicionada para tipagem de scope
 use Orchid\Screen\AsSource;
 
 class Lead extends Model
@@ -163,12 +164,12 @@ class Lead extends Model
     {
         if (!$this->telefone) return null;
         $clean = preg_replace('/\D/', '', $this->telefone);
-        
+
         // Adiciona o 55 (Brasil) se não estiver presente nos formatos comuns
         if (strlen($clean) <= 11) {
-             $clean = "55{$clean}";
+            $clean = "55{$clean}";
         }
-       
+
         return "https://wa.me/{$clean}";
     }
 
@@ -209,16 +210,14 @@ class Lead extends Model
     public function avancarEtapa(): bool
     {
         $index = array_search($this->status, self::FLUXO_VENDAS);
-        
+
         // Não avança se status não está no fluxo ou se já é o último
         if ($index === false || $index === count(self::FLUXO_VENDAS) - 1) {
             return false;
         }
 
         $this->status = self::FLUXO_VENDAS[$index + 1];
-        
-        // *** LINHA REMOVIDA DAQUI ***
-        // $this->reordenarNoFluxo(); 
+
         // O evento 'booted::updating' cuidará da reordenação automaticamente.
 
         return $this->save();
@@ -248,30 +247,43 @@ class Lead extends Model
     // SCOPES
     // ===================================================================
 
-    public function scopeNovo($query)
+    /**
+     * Filtra leads que estão no status 'novo'.
+     */
+    public function scopeNovo(Builder $query): Builder
     {
         return $query->where('status', 'novo');
     }
 
     /**
      * Filtra leads que estão no fluxo de vendas ativo (não perdidos/ganhos).
+     * Mantém a nomenclatura singular, conforme a recomendação.
      */
-    public function scopeAtivo($query)
+    public function scopeAtivo(Builder $query): Builder
     {
         return $query->whereIn('status', self::FLUXO_VENDAS);
     }
 
-    public function scopeSemCorretor($query)
+    /**
+     * Filtra leads que ainda não foram atribuídos a um corretor.
+     */
+    public function scopeSemCorretor(Builder $query): Builder
     {
         return $query->whereNull('user_id');
     }
 
-    public function scopeDoCorretor($query, $userId)
+    /**
+     * Filtra leads atribuídos a um corretor específico.
+     */
+    public function scopeDoCorretor(Builder $query, int $userId): Builder
     {
         return $query->where('user_id', $userId);
     }
 
-    public function scopeHoje($query)
+    /**
+     * Filtra leads criados na data de hoje.
+     */
+    public function scopeHoje(Builder $query): Builder
     {
         return $query->whereDate('created_at', today());
     }
@@ -319,7 +331,6 @@ class Lead extends Model
 
     /**
      * Função privada de reordenação (Não mais usada por avancarEtapa).
-     * Mantida aqui caso seja necessária em outro local.
      */
     private function reordenarNoFluxo(): void
     {

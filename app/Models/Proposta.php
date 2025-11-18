@@ -138,4 +138,3 @@ class Proposta extends Model
         return $query->where('valor_entrada', '>=', $valor);
     }
 }
-// 127 linhas mantidas
