@@ -17,6 +17,11 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "@hotwired/stimulus": "^3.2.2",
+        "@hotwired/stimulus-webpack-helpers": "^1.0.1",
+        "@hotwired/turbo": "^8.0.20",
+        "bootstrap": "^5.3.8",
+        "chart.js": "^4.5.1",
         "inputmask": "^5.0.9",
         "sortablejs": "^1.15.6"
     }

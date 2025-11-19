@@ -5,6 +5,15 @@
      */
 @endphp
 
+<div class="d-flex justify-content-end mb-2 mt-3">
+    <button id="kanban-refresh-btn" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        Desbloquear Movimentação de cards
+    </button>
+</div>
+
+
+
 {{-- Conteúdo principal do Kanban --}}
 <div class="container-fluid mt-3">
     <div id="kanban-wrapper"
@@ -72,6 +81,8 @@
 ---
 @push('head')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
 <style>
     /* Estilos Gerais do Kanban */
@@ -80,11 +91,9 @@
         padding: 10px;
         background-color: #f0f0f0; 
         border-radius: 4px;
-        /* Revertendo o scroll e max-height */
         overflow-y: visible;
     }
     
-    /* CORREÇÃO VISUAL: Esconde todos os cards a partir do 6º, a menos que a coluna tenha a classe 'show-all' */
     .kanban-column:not(.show-all) .kanban-card:nth-child(n+6) {
         display: none;
     }
@@ -114,9 +123,8 @@
         pointer-events: none;
     }
 
-    /* Estilos do botão "Ver Mais" (UX) */
     .view-more-button {
-        display: none; /* Padrão: escondido */
+        display: none;
         text-align: center;
         padding: 5px;
         margin-top: 10px;
@@ -126,13 +134,12 @@
         border-top: 1px solid #e9ecef;
         background-color: #ffffff;
         border-radius: 4px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Pequena sombra para destacá-lo */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .view-more-button.visible {
-        display: block; /* Força exibição via JS */
+        display: block;
     }
-    
-    /* Cores das Colunas */
+
     .status-novo .card-header { background-color: #007bff; color: #fff; }
     .status-qualificacao .card-header { background-color: #ffc107; color: #343a40; }
     .status-visita .card-header { background-color: #28a745; color: #fff; }
@@ -140,7 +147,6 @@
     .status-fechamento .card-header { background-color: #6f42c1; color: #fff; }
     .status-perdido .card-header { background-color: #dc3545; color: #fff; }
 
-    /* Estilos do Toast/Feedback (mantidos) */
     .kanban-toast {
         position: fixed;
         top: 10px;
@@ -166,183 +172,160 @@
 
 ---
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
-    <script>
-        // Funções utilitárias (mantidas)
-        const getCsrfToken = () => { return document.querySelector('meta[name="csrf-token"]')?.content || ''; };
-        const showToast = (message, type) => {
-            document.querySelectorAll('.kanban-toast').forEach(toast => toast.remove());
-            const toast = document.createElement('div');
-            toast.className = `kanban-toast ${type}`;
-            toast.innerHTML = `<span>${message}</span><button type="button" class="btn-close btn-close-white ms-2" onclick="this.parentElement.remove()"></button>`;
-            document.body.appendChild(toast);
-            void toast.offsetWidth;
-            toast.classList.add('show');
-            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
-        };
-        
-        /**
-         * Recalcula o número de cards e atualiza o contador (badge).
-         */
-        const updateColumnCounters = () => {
-            const columns = document.querySelectorAll('.kanban-column');
-            columns.forEach(column => {
-                const count = column.querySelectorAll('.kanban-card').length;
-                const badge = column.closest('.card')?.querySelector('.badge');
-                
-                if (badge) {
-                    badge.textContent = count.toString();
-                }
-                
-                const emptyPlaceholder = column.querySelector('.kanban-empty-placeholder');
-                if (emptyPlaceholder) {
-                    emptyPlaceholder.style.display = count > 0 ? 'none' : 'block';
-                }
-            });
-        };
+<script>
+    const getCsrfToken = () => { return document.querySelector('meta[name="csrf-token"]')?.content || ''; };
 
-        /**
-         * CORREÇÃO SCROLL/UX: Verifica a contagem de cards e exibe/oculta/alterna o botão "Ver Mais/Menos".
-         */
-        const checkViewMoreButton = () => {
-            document.querySelectorAll('.kanban-column').forEach(column => {
-                const leadCards = column.querySelectorAll('.kanban-card');
-                const cardCount = leadCards.length;
-                const columnBody = column.closest('.card-body');
-                
-                let viewMoreButton = columnBody.querySelector('.view-more-button');
-                
-                // 1. Cria o botão se ele não existir
-                if (!viewMoreButton) {
-                    const placeholder = columnBody.querySelector('.view-more-button-placeholder');
-                    if (placeholder) {
-                        viewMoreButton = document.createElement('div');
-                        viewMoreButton.className = 'view-more-button';
-                        viewMoreButton.onclick = function() {
-                            const isShowingAll = column.classList.toggle('show-all');
-                            this.textContent = isShowingAll ? 'Ver menos cards...' : 'Ver mais cards...';
-                        };
-                        placeholder.replaceWith(viewMoreButton);
-                    } else {
-                        return;
-                    }
-                }
+    const showToast = (message, type) => {
+        document.querySelectorAll('.kanban-toast').forEach(toast => toast.remove());
+        const toast = document.createElement('div');
+        toast.className = `kanban-toast ${type}`;
+        toast.innerHTML = `<span>${message}</span><button type="button" class="btn-close btn-close-white ms-2" onclick="this.parentElement.remove()"></button>`;
+        document.body.appendChild(toast);
+        void toast.offsetWidth;
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+    };
 
-                // 2. Controla a visibilidade e o texto inicial
-                if (cardCount > 5) {
-                    viewMoreButton.classList.add('visible');
-                    const isShowingAll = column.classList.contains('show-all');
-                    viewMoreButton.textContent = isShowingAll ? 'Ver menos cards...' : 'Ver mais cards...';
-                } else {
-                    viewMoreButton.classList.remove('visible');
-                    column.classList.remove('show-all'); 
-                }
-            });
-        };
+    const updateColumnCounters = () => {
+        const columns = document.querySelectorAll('.kanban-column');
+        columns.forEach(column => {
+            const count = column.querySelectorAll('.kanban-card').length;
+            const badge = column.closest('.card')?.querySelector('.badge');
+            if (badge) badge.textContent = count;
+            const emptyPlaceholder = column.querySelector('.kanban-empty-placeholder');
+            if (emptyPlaceholder) emptyPlaceholder.style.display = count > 0 ? 'none' : 'block';
+        });
+    };
 
+    const checkViewMoreButton = () => {
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            const leads = column.querySelectorAll('.kanban-card');
+            const cardCount = leads.length;
+            const columnBody = column.closest('.card-body');
+            let viewMoreButton = columnBody.querySelector('.view-more-button');
 
-        /**
-         * Inicializa o SortableJS em todas as colunas do Kanban (mantida a lógica de destruição para estabilidade).
-         */
-        const initializeSortableColumns = () => {
-            const columns = document.querySelectorAll('.kanban-column');
-            const updateUrl = document.getElementById('kanban-wrapper')?.dataset.updateUrl;
-
-            if (!updateUrl || columns.length === 0) {
-                console.warn('Kanban: Elementos ou URL de atualização não encontrados.');
-                return;
+            if (!viewMoreButton) {
+                const placeholder = columnBody.querySelector('.view-more-button-placeholder');
+                if (!placeholder) return;
+                viewMoreButton = document.createElement('div');
+                viewMoreButton.className = 'view-more-button';
+                viewMoreButton.onclick = function () {
+                    const isShowingAll = column.classList.toggle('show-all');
+                    this.textContent = isShowingAll ? 'Ver menos cards...' : 'Ver mais cards...';
+                };
+                placeholder.replaceWith(viewMoreButton);
             }
 
-            columns.forEach(column => {
-                let sortableInstance = Sortable.get(column);
-                if (sortableInstance) {
-                    sortableInstance.destroy();
-                }
-                
-                new Sortable(column, {
-                    group: 'kanban-leads',
-                    animation: 150,
-                    draggable: '.kanban-card',
-                    handle: '.kanban-card',
-                    ghostClass: 'kanban-ghost',
-                    
-                    onEnd: function (evt) {
-                        const leadId = evt.item.dataset.id;
-                        const leadItem = evt.item;
-                        const oldStatus = leadItem.dataset.status;
-                        const newStatus = evt.to.dataset.status;
-                        const fromColumn = evt.from;
+            if (cardCount > 5) {
+                viewMoreButton.classList.add('visible');
+                const isShowingAll = column.classList.contains('show-all');
+                viewMoreButton.textContent = isShowingAll ? 'Ver menos cards...' : 'Ver mais cards...';
+            } else {
+                viewMoreButton.classList.remove('visible');
+                column.classList.remove('show-all');
+            }
+        });
+    };
 
-                        if (oldStatus === newStatus && evt.oldIndex === evt.newIndex) {
-                            return;
+    const initializeSortableColumns = () => {
+        const columns = document.querySelectorAll('.kanban-column');
+        const updateUrl = document.getElementById('kanban-wrapper')?.dataset.updateUrl;
+
+        if (!updateUrl || columns.length === 0) {
+            console.warn('Kanban: Elementos ou URL de atualização não encontrados.');
+            return;
+        }
+
+        columns.forEach(column => {
+            let sortableInstance = Sortable.get(column);
+            if (sortableInstance) sortableInstance.destroy();
+
+            new Sortable(column, {
+                group: 'kanban-leads',
+                animation: 150,
+                draggable: '.kanban-card',
+                handle: '.kanban-card',
+                ghostClass: 'kanban-ghost',
+
+                onEnd: function (evt) {
+                    const leadId = evt.item.dataset.id;
+                    const leadItem = evt.item;
+                    const oldStatus = leadItem.dataset.status;
+                    const newStatus = evt.to.dataset.status;
+
+                    if (oldStatus === newStatus && evt.oldIndex === evt.newIndex) return;
+
+                    leadItem.classList.add('kanban-loading');
+
+                    const toColumn = evt.to;
+                    const itemsInColumn = Array.from(toColumn.querySelectorAll('.kanban-card'));
+                    const newOrder = itemsInColumn.findIndex(item => item.dataset.id === leadId);
+
+                    leadItem.dataset.status = newStatus;
+                    leadItem.dataset.order = newOrder;
+
+                    const columnOrderPayload = itemsInColumn.map((item, index) => ({
+                        id: item.dataset.id,
+                        order: index
+                    }));
+
+                    fetch(updateUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: leadId,
+                            status: newStatus,
+                            order: newOrder,
+                            column_order: columnOrderPayload
+                        }),
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error(`Status de Rede: ${response.status} ${response.statusText}`);
+                        return response.json();
+                    })
+                    .then(data => {
+                        leadItem.classList.remove('kanban-loading');
+                        if (data.success) {
+                            leadItem.classList.add('kanban-blink-success');
+                            showToast('Lead movido com sucesso!', 'success');
+                            updateColumnCounters();
+                            checkViewMoreButton();
+                            setTimeout(() => leadItem.classList.remove('kanban-blink-success'), 700);
+                        } else {
+                            leadItem.classList.add('kanban-blink-danger');
+                            showToast('Erro: ' + (data.message || 'Falha ao atualizar lead.'), 'danger');
+                            setTimeout(() => leadItem.classList.remove('kanban-blink-danger'), 700);
                         }
-
-                        leadItem.classList.add('kanban-loading');
-                        const toColumn = evt.to;
-
-                        // Recalcula a ordem
-                        const itemsInColumn = Array.from(toColumn.querySelectorAll('.kanban-card'));
-                        const newOrder = itemsInColumn.findIndex(item => item.dataset.id === leadId);
-
-                        leadItem.dataset.status = newStatus;
-                        leadItem.dataset.order = newOrder;
-
-                        const columnOrderPayload = itemsInColumn.map((item, index) => ({ id: item.dataset.id, order: index }));
-
-                        fetch(updateUrl, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken(), 'Accept': 'application/json', },
-                            body: JSON.stringify({ id: leadId, status: newStatus, order: newOrder, column_order: columnOrderPayload }),
-                        })
-                        .then(response => { if (!response.ok) { throw new Error(`Status de Rede: ${response.status} ${response.statusText}`); } return response.json(); })
-                        .then(data => {
-                            leadItem.classList.remove('kanban-loading');
-                            if (data.success) {
-                                leadItem.classList.add('kanban-blink-success');
-                                showToast('Lead movido com sucesso!', 'success');
-                                
-                                // ATUALIZAÇÃO UI: Contadores e Botão "Ver Mais"
-                                updateColumnCounters();
-                                checkViewMoreButton(); 
-                                
-                                setTimeout(() => leadItem.classList.remove('kanban-blink-success'), 700);
-                            } else {
-                                leadItem.classList.add('kanban-blink-danger');
-                                showToast('Erro: ' + (data.message || 'Falha ao atualizar lead.'), 'danger');
-                                
-                                // Reverte o card
-                                fromColumn.insertBefore(leadItem, fromColumn.children[evt.oldIndex] || null);
-                                updateColumnCounters();
-                                checkViewMoreButton();
-                                
-                                setTimeout(() => leadItem.classList.remove('kanban-blink-danger'), 700);
-                            }
-                        })
-                        .catch(error => {
-                            leadItem.classList.remove('kanban-loading');
-                            let displayMessage = 'Erro na atualização. ';
-
-                            if (error.message.includes('419')) { displayMessage = 'Sessão expirada. Recarregue a página (erro 419).'; } 
-                            else if (error.message.includes('Status de Rede')) { displayMessage += 'Falha no servidor. Verifique o log.'; } 
-                            else { displayMessage = 'Erro: ' + error.message; }
-                            
-                            showToast(displayMessage, 'danger');
-                            setTimeout(() => location.reload(), 1500);
-                        });
-                    }
-                });
+                    })
+                    .catch(error => {
+                        leadItem.classList.remove('kanban-loading');
+                        let displayMessage = 'Erro: ' + error.message;
+                        showToast(displayMessage, 'danger');
+                        setTimeout(() => location.reload(), 1500);
+                    });
+                }
             });
-            
-            // Força a atualização inicial da UI
-            updateColumnCounters();
-            checkViewMoreButton();
-        };
+        });
 
-        // 1. Inicializa o Sortable na primeira carga da página
-        document.addEventListener('DOMContentLoaded', initializeSortableColumns);
+        updateColumnCounters();
+        checkViewMoreButton();
+    };
 
-        // 2. Reinicializa o Sortable após atualizações dinâmicas do Orchid (após criar um novo lead)
-        document.addEventListener('screen:load', initializeSortableColumns);
+    document.addEventListener('DOMContentLoaded', initializeSortableColumns);
+    document.addEventListener('screen:load', initializeSortableColumns);
+    document.addEventListener('screen:reload', initializeSortableColumns);
 
-    </script>
+    // BOTÃO DE REFRESH
+    document.addEventListener('click', function (e) {
+        if (e.target && e.target.id === 'kanban-refresh-btn') {
+            window.location.reload();
+        }
+    });
+</script>
 @endpush
