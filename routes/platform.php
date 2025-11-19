@@ -4,50 +4,81 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Tabuna\Breadcrumbs\Trail;
-use App\Orchid\Screens\Propostas\PropostasKanbanScreen; // NOVA IMPORTAÇÃO
 
 // --------------------------------------------------------------------------
-// IMPORTAÇÃO DE TELAS (Screens)
+// MODELOS
 // --------------------------------------------------------------------------
+use App\Models\{
+    Construtora,
+    Cliente,
+    Imovel,
+    Aluguel,
+    Contrato,
+    Comissao,
+    Proposta,
+    Lead
+};
 
+// --------------------------------------------------------------------------
+// SCREENS
+// --------------------------------------------------------------------------
 use App\Orchid\Screens\{
-    // Core
     PlatformScreen,
+    DashboardScreen,
+
+    // Users & Roles
     User\UserListScreen,
     User\UserEditScreen,
     User\UserProfileScreen,
     Role\RoleListScreen,
     Role\RoleEditScreen,
 
-    // Módulos Customizados
-    DashboardScreen,
+    // CRUD
     ClienteListScreen, ClienteEditScreen,
     ImovelListScreen, ImovelEditScreen,
     AluguelListScreen, AluguelEditScreen,
     ContratoListScreen, ContratoEditScreen,
     ComissaoListScreen, ComissaoEditScreen,
-    PropostasListScreen, PropostasEditScreen, PropostaPdfScreen,
-    LeadListScreen, LeadEditScreen, LeadKanbanScreen,
-    FluxoScreen,
-    ConstrutoraListScreen, ConstrutoraEditScreen,
+    
+    // Construtora foi refatorada
+    ConstrutoraListScreen, 
+    ConstrutoraEditScreen,
+    ConstrutoraCreateAutoScreen, // NOVA
+    ConstrutoraCreateManualScreen, // NOVA
 
-    // Exemplos
-    Examples\ExampleScreen,
-    Examples\ExampleLayoutsScreen,
-    Examples\ExampleFieldsScreen,
-    Examples\ExampleFieldsAdvancedScreen,
-    Examples\ExampleTextEditorsScreen,
-    Examples\ExampleCardsScreen,
-    Examples\ExampleChartsScreen,
-    Examples\ExampleActionsScreen,
-    Examples\ExampleGridScreen
+    // Leads
+    LeadListScreen, LeadEditScreen, LeadKanbanScreen,
+
+    // Propostas
+    PropostasListScreen,
+    PropostasEditScreen,
+    PropostaPdfScreen,
 };
 
+// IMPORTAÇÃO CORRETA DA SUA KANBAN SCREEN
+use App\Orchid\Screens\Propostas\PropostasKanbanScreen;
+
+// Fluxo (caso exista)
+use App\Orchid\Screens\FluxoScreen;
+
+// Exemplos
+use App\Orchid\Screens\Examples\{
+    ExampleScreen,
+    ExampleLayoutsScreen,
+    ExampleFieldsScreen,
+    ExampleFieldsAdvancedScreen,
+    ExampleTextEditorsScreen,
+    ExampleCardsScreen,
+    ExampleChartsScreen,
+    ExampleActionsScreen,
+    ExampleGridScreen
+};
+
+
 // --------------------------------------------------------------------------
-// DASHBOARD & PERFIL
+// DASHBOARD
 // --------------------------------------------------------------------------
-Route::screen('/main', PlatformScreen::class)
-    ->name('platform.main');
+Route::screen('/main', PlatformScreen::class)->name('platform.main');
 
 Route::screen('dashboard', DashboardScreen::class)
     ->name('platform.dashboard')
@@ -57,15 +88,15 @@ Route::screen('profile', UserProfileScreen::class)
     ->name('platform.profile')
     ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Perfil'));
 
-// Rota para o Fluxo
 Route::screen('fluxo', FluxoScreen::class)
     ->name('platform.fluxo');
 
+
 // --------------------------------------------------------------------------
-// SISTEMA (USUÁRIOS & PAPÉIS)
+// SISTEMA (USERS & ROLES)
 // --------------------------------------------------------------------------
 Route::prefix('systems')->name('platform.systems.')->group(function () {
-    // --- Usuários ---
+
     Route::screen('users', UserListScreen::class)
         ->name('users')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Usuários'));
@@ -78,7 +109,6 @@ Route::prefix('systems')->name('platform.systems.')->group(function () {
         ->name('users.edit')
         ->breadcrumbs(fn (Trail $trail, $user) => $trail->parent('platform.systems.users')->push($user->name));
 
-    // --- Papéis (Roles) ---
     Route::screen('roles', RoleListScreen::class)
         ->name('roles')
         ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Papéis e Permissões'));
@@ -92,117 +122,199 @@ Route::prefix('systems')->name('platform.systems.')->group(function () {
         ->breadcrumbs(fn (Trail $trail, $role) => $trail->parent('platform.systems.roles')->push($role->name));
 });
 
+
 // --------------------------------------------------------------------------
-// MÓDULOS CRUD PADRÃO (construtoras, clientes, imóveis, etc)
+// CRUD MÓDULOS (GENÉRICOS)
 // --------------------------------------------------------------------------
 $crudModules = [
-    'construtoras' => ConstrutoraListScreen::class,
-    'clientes'     => ClienteListScreen::class,
-    'imoveis'      => ImovelListScreen::class,
-    'alugueis'     => AluguelListScreen::class,
-    'contratos'    => ContratoListScreen::class,
-    'comissoes'    => ComissaoListScreen::class,
+    // ATENÇÃO: 'construtoras' FOI REMOVIDA DAQUI
+    'clientes' => [
+        'list' => ClienteListScreen::class,
+        'edit' => ClienteEditScreen::class,
+        'model' => Cliente::class,
+    ],
+    'imoveis' => [
+        'list' => ImovelListScreen::class,
+        'edit' => ImovelEditScreen::class,
+        'model' => Imovel::class,
+    ],
+    'alugueis' => [
+        'list' => AluguelListScreen::class,
+        'edit' => AluguelEditScreen::class,
+        'model' => Aluguel::class,
+    ],
+    'contratos' => [
+        'list' => ContratoListScreen::class,
+        'edit' => ContratoEditScreen::class,
+        'model' => Contrato::class,
+    ],
+    'comissoes' => [
+        'list' => ComissaoListScreen::class,
+        'edit' => ComissaoEditScreen::class,
+        'model' => Comissao::class,
+    ],
 ];
 
-foreach ($crudModules as $prefix => $listScreen) {
-    // Assume a convenção de nomenclatura (ListScreen -> EditScreen)
-    $editScreen = str_replace('List', 'Edit', $listScreen);
+foreach ($crudModules as $prefix => $module) {
 
-    Route::prefix($prefix)->name("platform.{$prefix}.")->group(function () use ($prefix, $listScreen, $editScreen) {
+    Route::prefix($prefix)->name("platform.{$prefix}.")->group(function () use ($prefix, $module) {
 
-        Route::screen('/', $listScreen)
+        Route::screen('/', $module['list'])
             ->name('index')
-            ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push(ucfirst($prefix)));
+            ->breadcrumbs(fn (Trail $trail) =>
+                $trail->parent('platform.index')->push(ucfirst($prefix))
+            );
 
-        Route::screen('create', $editScreen)
+        Route::screen('create', $module['edit']) 
             ->name('create')
-            ->breadcrumbs(fn (Trail $trail) => $trail->parent("platform.{$prefix}.index")->push('Criar'));
+            ->breadcrumbs(fn (Trail $trail) =>
+                $trail->parent("platform.{$prefix}.index")->push('Criar')
+            );
 
-        Route::screen('{model}/edit', $editScreen)
+        // Rota de EDIÇÃO genérica (mantida a correção de Safe-Binding)
+        Route::screen('{' . $prefix . '}/edit', $module['edit'])
             ->name('edit')
-            ->breadcrumbs(fn (Trail $trail, $model) => $trail->parent("platform.{$prefix}.index")->push(
-                // Tenta encontrar o melhor "nome" para o breadcrumb
-                $model->name ?? $model->titulo ?? $model->nome_razao_social ?? "Item #{$model->id}"
-            ));
+            ->breadcrumbs(function (Trail $trail, $model) use ($prefix, $module) {
+                $modelInstance = is_string($model) 
+                    ? $module['model']::findOrFail($model) 
+                    : $model;
+
+                return $trail->parent("platform.{$prefix}.index")
+                    ->push(
+                        $modelInstance->name
+                        ?? $modelInstance->titulo
+                        ?? $modelInstance->nome_razao_social
+                        ?? "#{$modelInstance->id}"
+                    );
+            });
     });
 }
 
 // --------------------------------------------------------------------------
-// PROPOSTAS (List, Create, Edit, PDF, KANBAN)
+// ROTAS REFATORADAS DE CONSTRUTORAS (3 SCREENS)
+// --------------------------------------------------------------------------
+Route::prefix('construtoras')->name("platform.construtoras.")->group(function () {
+    
+    // Rota de LISTA (índice)
+    Route::screen('/', ConstrutoraListScreen::class)
+        ->name('index')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Construtoras'));
+
+    // Rota de CRIAÇÃO - Fluxo Automático (Busca CNPJ)
+    Route::screen('create-auto', ConstrutoraCreateAutoScreen::class)
+        ->name('create.auto')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent("platform.construtoras.index")->push('Novo (Automático)'));
+
+    // Rota de CRIAÇÃO - Fluxo Manual
+    Route::screen('create-manual', ConstrutoraCreateManualScreen::class)
+        ->name('create.manual')
+        ->breadcrumbs(fn (Trail $trail) => $trail->parent("platform.construtoras.index")->push('Novo (Manual)'));
+    
+    // Rota de EDIÇÃO (pura) - Usa Model Binding Explícito na closure do breadcrumb
+    Route::screen('{construtora}/edit', ConstrutoraEditScreen::class)
+        ->name('edit')
+        ->breadcrumbs(function (Trail $trail, Construtora $construtora) {
+            return $trail->parent("platform.construtoras.index")
+                ->push(
+                    $construtora->name
+                    ?? $construtora->titulo
+                    ?? $construtora->nome_razao_social
+                    ?? "#{$construtora->id}"
+                );
+        });
+});
+
+// --------------------------------------------------------------------------
+// PROPOSTAS
 // --------------------------------------------------------------------------
 Route::prefix('propostas')->name('platform.propostas.')->group(function () {
 
-    // Listagem
     Route::screen('/', PropostasListScreen::class)
         ->name('index')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Propostas'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.index')->push('Propostas')
+        );
 
-    // Criação (usa a PropostasEditScreen com injeção de um novo modelo)
     Route::screen('create', PropostasEditScreen::class)
         ->name('create')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.propostas.index')->push('Criar Proposta'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.propostas.index')->push('Criar Proposta')
+        );
 
-    // Criação a partir de um Lead (também usa PropostasEditScreen)
     Route::screen('create/{lead}', PropostasEditScreen::class)
         ->name('create.from.lead')
-        ->breadcrumbs(fn (Trail $trail, $lead) => $trail->parent('platform.propostas.index')->push("Proposta para Lead #{$lead->id}"));
+        ->breadcrumbs(fn (Trail $trail, Lead $lead) =>
+            $trail->parent('platform.propostas.index')->push("Proposta para Lead #{$lead->id}")
+        );
 
-    // Edição
     Route::screen('{proposta}/edit', PropostasEditScreen::class)
         ->name('edit')
-        ->breadcrumbs(fn (Trail $trail, $proposta) => $trail->parent('platform.propostas.index')->push("Proposta #{$proposta->id}"));
+        ->breadcrumbs(fn (Trail $trail, Proposta $proposta) =>
+            $trail->parent('platform.propostas.index')->push("Proposta #{$proposta->id}")
+        );
 
-    // Visualização do PDF
     Route::screen('pdf/{proposta}', PropostaPdfScreen::class)
         ->name('pdf')
-        ->breadcrumbs(fn (Trail $trail, $proposta) => $trail->parent('platform.propostas.index')->push("PDF Proposta #{$proposta->id}"));
+        ->breadcrumbs(fn (Trail $trail, Proposta $proposta) =>
+            $trail->parent('platform.propostas.index')->push("PDF #{$proposta->id}")
+        );
 
-    // *** ROTAS KANBAN INSERIDAS AQUI ***
-
-    // Kanban de Propostas
     Route::screen('kanban', PropostasKanbanScreen::class)
         ->name('kanban')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.propostas.index')->push('Kanban'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.propostas.index')->push('Kanban')
+        );
 
-    // POST para atualização do status do Kanban
     Route::post('kanban/update', [PropostasKanbanScreen::class, 'updateStatus'])
         ->name('kanban.update');
+
+    Route::post('calculate', [PropostasEditScreen::class, 'ajaxCalculate'])
+        ->name('calculate');
 });
 
+
 // --------------------------------------------------------------------------
-// LEADS (list, create, edit, kanban e update status)
+// LEADS
 // --------------------------------------------------------------------------
 Route::prefix('leads')->name('platform.leads.')->group(function () {
 
-    // Listagem
     Route::screen('/', LeadListScreen::class)
         ->name('index')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.index')->push('Leads'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.index')->push('Leads')
+        );
 
-    // Criação
     Route::screen('create', LeadEditScreen::class)
         ->name('create')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.leads.index')->push('Criar Lead'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.leads.index')->push('Criar Lead')
+        );
 
-    // Edição
     Route::screen('{lead}/edit', LeadEditScreen::class)
         ->name('edit')
-        ->breadcrumbs(fn (Trail $trail, $lead) => $trail->parent('platform.leads.index')->push("Lead #{$lead->id}"));
+        ->breadcrumbs(fn (Trail $trail, Lead $lead) =>
+            $trail->parent('platform.leads.index')->push("Lead #{$lead->id}")
+        );
 
-    // Kanban
     Route::screen('kanban', LeadKanbanScreen::class)
         ->name('kanban')
-        ->breadcrumbs(fn (Trail $trail) => $trail->parent('platform.leads.index')->push('Kanban'));
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.leads.index')->push('Kanban')
+        );
+Route::post('kanban/update', [LeadKanbanScreen::class, 'updateKanban'])
+    ->name('kanban.update');
 
-    // POST para atualização do status do Kanban
-    Route::post('kanban/update', [LeadKanbanScreen::class, 'updateStatus'])
-        ->name('kanban.update');
+
+    Route::post('kanban/update-drag', [LeadKanbanScreen::class, 'updateKanban'])
+        ->name('kanban.update.drag');
 });
 
+
 // --------------------------------------------------------------------------
-// EXEMPLOS (em grupo com prefixo e nome)
+// EXEMPLOS
 // --------------------------------------------------------------------------
 Route::prefix('examples')->name('platform.example.')->group(function () {
+    Route::screen('/', ExampleScreen::class)->name('index');
     Route::screen('form/fields', ExampleFieldsScreen::class)->name('fields');
     Route::screen('form/advanced', ExampleFieldsAdvancedScreen::class)->name('advanced');
     Route::screen('form/editors', ExampleTextEditorsScreen::class)->name('editors');
@@ -211,26 +323,4 @@ Route::prefix('examples')->name('platform.example.')->group(function () {
     Route::screen('grid', ExampleGridScreen::class)->name('grid');
     Route::screen('charts', ExampleChartsScreen::class)->name('charts');
     Route::screen('cards', ExampleCardsScreen::class)->name('cards');
-    Route::screen('/', ExampleScreen::class)->name('index');
 });
-
-// --------------------------------------------------------------------------
-// OUTRAS ROTAS ESPECIAIS
-// --------------------------------------------------------------------------
-
-// AJAX de cálculo para propostas
-Route::post('propostas/calculate', [PropostasEditScreen::class, 'ajaxCalculate'])
-    ->name('platform.propostas.calculate');
-
-
-
-
-
-
-Route::screen('leads/kanban', LeadKanbanScreen::class)
-    ->name('platform.leads.kanban');
-
-// ROTA NECESSÁRIA PARA O DRAG & DROP
-Route::post('leads/kanban/update', [LeadKanbanScreen::class, 'updateKanban'])
-    ->name('platform.leads.kanban.update');
-

@@ -1,6 +1,32 @@
+import * as Turbo from '@hotwired/turbo';
+import * as Bootstrap from 'bootstrap';
+
+import { Application } from '@hotwired/stimulus';
+import { definitionsFromContext } from '@hotwired/stimulus-webpack-helpers';
+import ApplicationController from './controllers/application_controller';
+// import Orchid from "./orchid"; <--- ESTA LINHA FOI REMOVIDA
+
 import Inputmask from 'inputmask';
 
-// Função que inicia o cálculo na carga inicial e em recargas de tela (Orchid/Turbo)
+window.Turbo = Turbo;
+window.Bootstrap = Bootstrap;
+window.application = Application.start();
+window.Controller = ApplicationController;
+// window.Orchid = Orchid; <--- ESTA LINHA FOI REMOVIDA
+
+const context = require.context('./controllers', true, /\.js$/);
+application.load(definitionsFromContext(context));
+
+window.addEventListener('turbo:before-fetch-request', (event) => {
+    let state = document.getElementById('screen-state')?.value;
+
+    if (state && state.length > 0) {
+        event.detail?.fetchOptions?.body?.append('_state', state);
+    }
+});
+
+// A partir daqui é o seu código de calculadora (que não é o padrão do Laravel/Orchid, mas deve ser mantido)
+
 document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('screen:load', initializeFluxoCalculator);
     initializeFluxoCalculator();

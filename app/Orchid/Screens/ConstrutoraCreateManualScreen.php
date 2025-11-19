@@ -8,7 +8,6 @@ use App\Models\Construtora;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Orchid\Screen\Actions\Button;
-use Orchid\Screen\Actions\Link; // Adicionado Link
 use Orchid\Screen\Fields\Group;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Screen;
@@ -16,59 +15,38 @@ use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
 
 /**
- * Screen for editing an existing Construtora record.
+ * Screen for manual creation/basic entry.
  */
-class ConstrutoraEditScreen extends Screen
+class ConstrutoraCreateManualScreen extends Screen
 {
-    public ?Construtora $construtora = null; 
+    public Construtora $construtora;
 
     public function query(Construtora $construtora): array
     {
-        // Force Model Binding and check for existence
-        if (!$construtora->exists) { 
-            $id = request()->route('construtoras'); 
-            if ($id) {
-                // If it doesn't exist, ModelNotFoundException will be thrown (404)
-                $construtora = Construtora::findOrFail($id); 
-            } else {
-                // Should not happen as this screen is only for 'edit' routes
-                abort(404);
-            }
-        }
-        
-        $this->construtora = $construtora;
+        // Always starts with a new model instance
+        $this->construtora = $construtora->exists ? new Construtora() : $construtora;
 
         return [
-            'construtora' => $construtora,
+            'construtora' => $this->construtora,
         ];
     }
 
     public function name(): ?string
     {
-        // Displays the CNPJ on the screen name
-        return 'Editar Construtora: ' . $this->construtora->cnpj_formatted;
+        return 'Cadastrar Construtora (Manual)';
     }
 
     public function description(): ?string
     {
-        return 'Edite os dados básicos da construtora.';
+        return 'Preencha os dados manualmente.';
     }
 
     public function commandBar(): array
     {
         return [
-            // NOVO: Botão Voltar para a lista
-            Link::make('Voltar para Lista')
-                ->icon('bs.arrow-left')
-                ->route('platform.construtoras.index'),
-
             Button::make('Salvar')
                 ->icon('bs.check-circle')
                 ->method('save'),
-
-            Button::make('Remover')
-                ->icon('bs.trash')
-                ->method('remove'),
         ];
     }
 
@@ -76,12 +54,12 @@ class ConstrutoraEditScreen extends Screen
     {
         return [
             Layout::rows([
-                // CNPJ is readonly for editing
                 Input::make('construtora.cnpj')
                     ->title('CNPJ')
                     ->mask('99.999.999/9999-99')
-                    ->readonly(),
-                
+                    ->placeholder('00.000.000/0000-00')
+                    ->required(),
+                    
                 Input::make('construtora.nome')->title('Razão Social')->required(),
                 Input::make('construtora.nome_fantasia')->title('Nome Fantasia'),
                 Input::make('construtora.telefone')->title('Telefone')->mask('(99) 99999-9999'),
@@ -107,7 +85,7 @@ class ConstrutoraEditScreen extends Screen
 
                 Input::make('construtora.situacao')
                     ->title('Situação Cadastral')
-                    ->help('Pode ser alterado aqui, mas não é feito pela Receita'),
+                    ->help('Opcional'),
             ])->title('Dados da Construtora'),
         ];
     }
@@ -116,19 +94,12 @@ class ConstrutoraEditScreen extends Screen
     {
         $data = $request->input('construtora', []);
         
-        // CNPJ é readonly, mas ainda precisamos limpar para salvar, caso o usuário burle o readonly.
-        $newCnpj = preg_replace('/\D/', '', $data['cnpj'] ?? $construtora->cnpj); 
-        $data['cnpj'] = $newCnpj;
+        $cnpjValue = $request->input('construtora.cnpj');
+        $data['cnpj'] = preg_replace('/\D/', '', $cnpjValue ?? '');
         $data['cep'] = preg_replace('/\D/', '', $data['cep'] ?? '');
 
-        // Regras de validação
         $rules = [
-            'cnpj'   => [
-                'required', 
-                'digits:14',
-                // Se o CNPJ for alterado (apesar de ser readonly), verifica unicidade
-                Rule::unique('construtoras', 'cnpj')->ignore($construtora)
-            ],
+            'cnpj'   => ['required', 'digits:14', Rule::unique('construtoras', 'cnpj')],
             'nome'   => 'required',
             'cidade' => 'required',
             'uf'     => 'required|size:2',
@@ -138,14 +109,8 @@ class ConstrutoraEditScreen extends Screen
 
         $construtora->fill($data)->save();
 
-        Toast::success('Construtora atualizada com sucesso!');
-        return back(); // Mantém na edição para continuar editando
-    }
-
-    public function remove(Construtora $construtora)
-    {
-        $construtora->delete();
-        Toast::info('Construtora removida com sucesso.');
-        return redirect()->route('platform.construtoras.index');
+        Toast::success('Construtora salva com sucesso!');
+        // Redireciona para a tela de edição após a criação
+        return redirect()->route('platform.construtoras.edit', $construtora);
     }
 }
