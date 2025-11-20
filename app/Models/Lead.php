@@ -129,14 +129,14 @@ class Lead extends Model
     {
         $colors = [
             'novo'         => 'bg-info text-white',
-            'qualificacao' => 'bg-primary',
+            'qualificacao' => 'bg-primary text-white', // Adicionado text-white para consistência
             'visita'       => 'bg-warning text-dark',
-            'negociacao'   => 'bg-orange text-white',
-            'fechamento'   => 'bg-success',
-            'perdido'      => 'bg-danger',
+            'negociacao'   => 'bg-warning text-dark', // <-- CORRIGIDO: Usa a classe Warning (Amarelo) com texto ESCURO
+            'fechamento'   => 'bg-success text-white', // Adicionado text-white para consistência
+            'perdido'      => 'bg-danger text-white', // Adicionado text-white para consistência
         ];
 
-        $color = $colors[$this->status] ?? 'bg-secondary';
+        $color = $colors[$this->status] ?? 'bg-secondary text-white'; // Fallback com texto claro
         return "<span class=\"badge {$color} fw-semibold\">{$this->status_label}</span>";
     }
 

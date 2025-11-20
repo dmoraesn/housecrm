@@ -24,12 +24,11 @@ class LeadListScreen extends Screen
             ->when(request('corretor_name'), fn($q, $v) =>
                 $q->whereHas('corretor', fn($qq) => $qq->where('name', 'like', "%{$v}%"))
             )
-            ->orderByDesc('created_at')
+            ->orderByDesc('created_at') // ✔️ ordenação padrão válida
             ->with(['corretor', 'propostas']);
 
         return [
             'leads' => $query->paginate(15),
-            // Passa opções para o filtro funcionar no frontend
             'statusOptions' => Lead::statusOptions(),
             'origemOptions' => Lead::origemOptions(),
         ];
@@ -55,14 +54,20 @@ class LeadListScreen extends Screen
                 TD::make('id', 'ID')
                     ->width('60px')
                     ->sort()
-                    ->render(fn(Lead $lead) => Link::make("#{$lead->id}")
-                        ->route('platform.leads.edit', $lead)
-                        ->class('text-primary fw-bold')),
+                    ->render(fn(Lead $lead) =>
+                        Link::make("#{$lead->id}")
+                            ->route('platform.leads.edit', $lead)
+                            ->class('text-primary fw-bold')
+                    ),
 
                 TD::make('nome', 'Nome')
                     ->sort()
                     ->filter(TD::FILTER_TEXT)
-                    ->render(fn(Lead $lead) => view('components.lead-name', compact('lead'))),
+                    ->render(fn(Lead $lead) =>
+                        Link::make($lead->nome)
+                            ->route('platform.leads.edit', $lead)
+                            ->class('fw-bold text-primary')
+                    ),
 
                 TD::make('email', 'E-mail')
                     ->sort()
@@ -76,23 +81,31 @@ class LeadListScreen extends Screen
 
                 TD::make('origem', 'Origem')
                     ->sort()
-                    ->filter(TD::FILTER_SELECT, Lead::origemOptions()) // ← CORRIGIDO
-                    ->render(fn(Lead $lead) => $lead->origem ?? '<em class="text-muted">N/D</em>'),
+                    ->filter(TD::FILTER_SELECT, Lead::origemOptions())
+                    ->render(fn(Lead $lead) =>
+                        $lead->origem ?? '<em class="text-muted">N/D</em>'
+                    ),
 
                 TD::make('status', 'Status')
                     ->sort()
-                    ->filter(TD::FILTER_SELECT, Lead::statusOptions()) // ← CORRIGIDO
-                    ->render(fn(Lead $lead) => view('components.status-badge', ['status' => $lead->status])),
+                    ->filter(TD::FILTER_SELECT, Lead::statusOptions())
+                    ->render(fn(Lead $lead) =>
+                        view('components.status-badge', ['status' => $lead->status])
+                    ),
 
                 TD::make('corretor.name', 'Corretor')
                     ->sort()
                     ->filter(TD::FILTER_TEXT)
-                    ->render(fn(Lead $lead) => $lead->corretor?->name ?? '<em class="text-muted">N/D</em>')
+                    ->render(fn(Lead $lead) =>
+                        $lead->corretor?->name ?? '<em class="text-muted">N/D</em>'
+                    )
                     ->cantHide(),
 
                 TD::make('created_at', 'Criado em')
                     ->sort()
-                    ->render(fn(Lead $lead) => $lead->created_at->format('d/m/Y H:i'))
+                    ->render(fn(Lead $lead) =>
+                        $lead->created_at->format('d/m/Y H:i')
+                    )
                     ->defaultHidden(),
             ]),
         ];
@@ -101,7 +114,11 @@ class LeadListScreen extends Screen
     private function formatEmail(?string $email): string
     {
         return $email
-            ? sprintf('<a href="mailto:%s" class="text-decoration-none">%s</a>', e($email), e($email))
+            ? sprintf(
+                '<a href="mailto:%s" class="text-decoration-none">%s</a>',
+                e($email),
+                e($email)
+            )
             : '<em class="text-muted">Sem e-mail</em>';
     }
 
