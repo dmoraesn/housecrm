@@ -1,5 +1,31 @@
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+// =======================================================================
+// TRIGGER AUTOMÁTICO — Reativa o JS sempre que o Orchid recarregar a tela
+// =======================================================================
+function ativarFluxoJS() {
+    console.log("FluxoScreen: JS de cálculo reativado automaticamente.");
+
+    if (typeof iniciarCalculoFluxo === "function") {
+        iniciarCalculoFluxo();
+    }
+}
+
+document.addEventListener("DOMContentLoaded", ativarFluxoJS);
+document.addEventListener("orchid:screen:load", ativarFluxoJS);
+document.addEventListener("orchid:screen:render", ativarFluxoJS);
+document.addEventListener("turbo:load", ativarFluxoJS);
+</script>
+
+
+
+<script>
+// =======================================================================
+// TODO O SEU JS ORIGINAL — APENAS ENCAPSULADO
+// =======================================================================
+
+function iniciarCalculoFluxo() {
+
+    console.log("FluxoScreen: iniciarCalculoFluxo() executado.");
 
     // =========================================================
     // Funções de formatação BRL
@@ -62,9 +88,9 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('financiamento_percentual').readOnly = true;
         }
 
-        // Atualiza label visual do percentual
-        const percLabel = document.getElementById('percentualLabel');
-        if (percLabel) percLabel.value = `${Math.round(perc)}%`;
+        if (document.getElementById('percentualLabel')) {
+            percentualLabel.value = `${Math.round(perc)}%`;
+        }
 
         // -----------------------------------------------------
         // Cálculos principais
@@ -103,14 +129,16 @@ document.addEventListener("DOMContentLoaded", () => {
         // -----------------------------------------------------
         // Painel flutuante
         // -----------------------------------------------------
-        const saldoTopo = document.getElementById('saldoRestanteTopo');
-        const difAvaliacao = document.getElementById('difAvaliacao');
-        const finCorrigido = document.getElementById('finCorrigido');
+        const saldoTopo     = document.getElementById('saldoRestanteTopo');
+        const difAvaliacao  = document.getElementById('difAvaliacao');
+        const finCorrigido  = document.getElementById('finCorrigido');
 
         if (saldoTopo)     saldoTopo.textContent = format(saldo);
         if (difAvaliacao)  difAvaliacao.textContent = (diferenca >= 0 ? '+' : '') + format(diferenca);
         if (finCorrigido)  finCorrigido.textContent = format(corr);
     };
+
+
 
     // =========================================================
     // Listeners automáticos
@@ -125,11 +153,9 @@ document.addEventListener("DOMContentLoaded", () => {
         el.addEventListener('change', () => recalc());
     });
 
-    // Observa DOM para inputs dos balões
     const observer = new MutationObserver(() => debounce(recalc));
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Execução inicial
     recalc();
-});
+}
 </script>

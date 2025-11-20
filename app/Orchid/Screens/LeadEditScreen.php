@@ -4,80 +4,98 @@ namespace App\Orchid\Screens;
 
 use App\Models\Lead;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Orchid\Screen\Screen;
+use Orchid\Support\Facades\Layout;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\Select;
-use Orchid\Screen\Fields\TextArea;
-use Orchid\Support\Facades\Layout;
-use Orchid\Support\Facades\Toast;
 use Orchid\Screen\Actions\Button;
-use Orchid\Screen\Actions\Link;
+use Orchid\Support\Color;
+use Illuminate\Http\Request;
+use Orchid\Support\Facades\Toast; // Adicionado para correção do erro Call to undefined function
 
 class LeadEditScreen extends Screen
 {
-    public ?Lead $lead = null;
+    public $lead;
 
-    public function query(Lead $lead): array
+    /**
+     * Query data.
+     */
+    public function query(Lead $lead): iterable
     {
-        $this->lead = $lead;
-        return ['lead' => $lead];
+        return [
+            'lead' => $lead,
+        ];
     }
 
+    /**
+     * Screen name.
+     */
     public function name(): ?string
     {
-        return $this->lead->exists ? 'Editar Lead: ' . $this->lead->nome : 'Novo Lead';
+        return 'Editar Lead: ' . $this->lead->nome;
     }
 
+    /**
+     * Description (aparece abaixo do título).
+     */
     public function description(): ?string
     {
         return 'Gerencie informações e etapa do lead no funil.';
     }
 
-    public function commandBar(): array
+    /**
+     * Badge do status do lead.
+     */
+    public function badge(): ?array
     {
-        $statusBadge = $this->lead->exists ? $this->getStatusBadge($this->lead->status) : '';
+        $statusMap = [
+            'novo' => Color::INFO(),          // Novo Lead (Azul Claro)
+            'qualificacao' => Color::PRIMARY(),  // Qualificação (Azul)
+            'visita' => Color::WARNING(),     // Visita Marcada (Amarelo)
+            'negociacao' => Color::WARNING(), // Negociação (Amarelo/Laranja - Cor de atenção)
+            'fechamento' => Color::SUCCESS(),    // Fechamento (Verde)
+            'perdido' => Color::DANGER(),        // Perdido (Vermelho)
+        ];
+
+        $statusKey = $this->lead->status;
+        $color = $statusMap[$statusKey] ?? Color::SECONDARY(); // Cor padrão
 
         return [
-            Link::make($statusBadge)
-                ->class('btn btn-default')
-                ->canSee($this->lead->exists)
-                ->rawHtml(true),
-
-            Button::make('Salvar')
-                ->icon('check')
-                ->method('save')
-                ->class('btn btn-primary'),
-
-            Button::make('Avançar Etapa')
-                ->icon('arrow-right')
-                ->method('avancarEtapa')
-                ->class('btn btn-outline-success')
-                ->canSee($this->lead->exists && $this->lead->status !== array_key_last(Lead::statusOptions())),
-
-            Button::make('Marcar como Perdido')
-                ->icon('close')
-                ->method('marcarPerdido')
-                ->class('btn btn-outline-danger')
-                ->canSee($this->lead->exists && $this->lead->status !== 'perdido'),
-
-            Button::make('Excluir')
-                ->icon('trash')
-                ->method('remove')
-                ->class('btn btn-link text-danger')
-                ->canSee($this->lead->exists)
-                ->confirm('Tem certeza que deseja excluir este lead? Esta ação é irreversível.'),
+            $this->lead->status_label => $color,
         ];
     }
 
-    public function layout(): array
+    /**
+     * Command bar.
+     */
+    public function commandBar(): iterable
+    {
+        return [
+            Button::make('Salvar')
+                ->method('save')
+                ->type(Color::PRIMARY())
+                ->icon('check'),
+
+
+
+            Button::make('Excluir')
+                ->method('remove')
+                ->type(Color::DANGER())
+                ->icon('trash'),
+        ];
+    }
+
+    /**
+     * Form layout.
+     */
+    public function layout(): iterable
     {
         return [
             Layout::rows([
+
                 Input::make('lead.nome')
                     ->title('Nome')
-                    ->required()
-                    ->placeholder('Nome completo'),
+                    ->required(),
 
                 Input::make('lead.email')
                     ->title('E-mail')
@@ -89,114 +107,105 @@ class LeadEditScreen extends Screen
 
                 Select::make('lead.user_id')
                     ->title('Corretor Responsável')
-                    ->fromModel(User::class, 'name')
+                    ->options(User::pluck('name', 'id')->toArray())
                     ->empty('Sem corretor'),
 
                 Select::make('lead.origem')
                     ->title('Origem')
-                    ->options(Lead::origemOptions()) // ← CORRIGIDO
+                    ->options([
+                        'Site' => 'Site',
+                        'Instagram' => 'Instagram',
+                        'Facebook' => 'Facebook',
+                        'Indicação' => 'Indicação',
+                        'Anúncio' => 'Anúncio',
+                        'WhatsApp' => 'WhatsApp',
+                        'Google' => 'Google',
+                        'Email' => 'Email',
+                        'Telefone' => 'Telefone',
+                        'Evento' => 'Evento',
+                        'Outro' => 'Outro',
+                    ])
                     ->empty('Selecione uma origem'),
 
                 Select::make('lead.status')
                     ->title('Etapa do Funil')
-                    ->options(Lead::statusOptions()) // ← CORRIGIDO
                     ->required()
-                    ->value(fn() => $this->lead->status ?? 'novo')
-                    ->help('Define a posição do lead no processo de vendas.'),
+                    ->options([
+                        'novo' => '1 Novo Lead / Descoberta',
+                        'qualificacao' => '2 Qualificação / Entendimento',
+                        'visita' => '3 Apresentação / Visita',
+                        'negociacao' => '4 Proposta / Negociação',
+                        'fechamento' => '5 Fechamento / Contrato',
+                        'perdido' => '6 Perdido',
+                    ]),
 
                 Input::make('lead.valor_interesse')
                     ->title('Valor de Interesse (R$)')
-                    ->mask('999.999.999,99')
-                    ->help('Valor aproximado do imóvel de interesse do cliente.'),
+                    ->mask([
+                        'alias' => 'currency',
+                        'prefix' => 'R$ ',
+                        'groupSeparator' => '.',
+                        'radixPoint' => ',',
+                        'digits' => 2,
+                        'autoGroup' => true,
+                    ]),
 
-                TextArea::make('lead.mensagem')
-                    ->title('Mensagem Original')
-                    ->rows(2)
-                    ->placeholder('Mensagem enviada pelo lead (se aplicável).')
-                    ->canSee($this->lead->exists && !empty($this->lead->mensagem)),
-
-                TextArea::make('lead.observacoes')
+                Input::make('lead.observacoes')
                     ->title('Observações Internas')
                     ->rows(5)
-                    ->placeholder('Anotações importantes, histórico de contato, motivação de perda, etc.'),
+                    ->type('textarea'),
+
             ]),
         ];
     }
 
-    public function save(Lead $lead, Request $request)
+    /**
+     * Salvar lead.
+     */
+    public function save(Request $request, Lead $lead)
     {
-        $data = $request->validate([
-            'lead.nome'           => 'required|string|max:255',
-            'lead.email'          => 'nullable|email|max:255',
-            'lead.telefone'       => 'nullable|string|max:20',
-            'lead.user_id'        => 'nullable|exists:users,id',
-            'lead.status'         => 'required|in:' . implode(',', array_keys(Lead::statusOptions())),
-            'lead.origem'         => 'nullable|string|max:50',
-            'lead.valor_interesse' => 'nullable|numeric',
-            'lead.observacoes'    => 'nullable|string',
-            'lead.mensagem'       => 'nullable|string',
-        ], [
-            'lead.nome.required' => 'O nome do lead é obrigatório.',
-        ]);
-
-        if (isset($data['lead']['valor_interesse'])) {
-            $data['lead']['valor_interesse'] = str_replace(['.', ','], ['', '.'], $data['lead']['valor_interesse']);
-        }
-
-        $lead->fill($data['lead'])->save();
-
-        Toast::success('Lead salvo com sucesso!');
-        return redirect()->route('platform.leads.kanban');
+        $lead->update($request->get('lead'));
+        Toast::success('Lead atualizado com sucesso!');
     }
 
-    public function avancarEtapa(Lead $lead): void
+    /**
+     * Avançar etapa.
+     */
+    public function avancarEtapa(Lead $lead)
     {
-        $options = Lead::statusOptions();
-        $keys = array_keys($options);
-        $currentIndex = array_search($lead->status, $keys);
+        $pipeline = [
+            'novo' => 'qualificacao',
+            'qualificacao' => 'visita',
+            'visita' => 'negociacao',
+            'negociacao' => 'fechamento',
+        ];
 
-        if ($currentIndex === false || $currentIndex === count($keys) - 1) {
-            Toast::warning('O lead já está na última etapa do funil de vendas.');
-            return;
+        if (isset($pipeline[$lead->status])) {
+            $lead->status = $pipeline[$lead->status];
+            $lead->save();
+            Toast::success('Etapa avançada!');
+        } else {
+            Toast::warning('Este lead já está na última etapa.');
         }
-
-        $lead->status = $keys[$currentIndex + 1];
-        $lead->save();
-
-        Toast::success("Etapa avançada com sucesso para: " . $options[$lead->status]);
     }
 
-    public function marcarPerdido(Lead $lead): void
+    /**
+     * Marcar como perdido.
+     */
+    public function marcarPerdido(Lead $lead)
     {
         $lead->status = 'perdido';
-        $lead->observacoes = ($lead->observacoes ? $lead->observacoes . "\n\n" : '') . 
-            '[Perdido] Marcado manualmente via tela de edição em ' . now()->format('d/m/Y H:i');
         $lead->save();
-
-        Toast::success('Lead marcado como **Perdido** com sucesso.');
+        Toast::info('Lead marcado como perdido.');
     }
 
+    /**
+     * Remover lead.
+     */
     public function remove(Lead $lead)
     {
         $lead->delete();
-        Toast::warning('Lead excluído com sucesso.');
-        return redirect()->route('platform.leads.kanban');
-    }
-
-    private function getStatusBadge(string $status): string
-    {
-        $options = Lead::statusOptions();
-        $label = $options[$status] ?? ucfirst($status);
-        $color = match ($status) {
-            'novo' => 'info',
-            'qualificacao' => 'primary',
-            'visita' => 'warning',
-            'negociacao' => 'orange',
-            'fechamento' => 'success',
-            'perdido' => 'danger',
-            default => 'secondary',
-        };
-
-        return "<span class=\"badge bg-{$color} fw-semibold\">{$label}</span>";
+        Toast::error('Lead excluído.');
+        return redirect()->route('platform.leads');
     }
 }

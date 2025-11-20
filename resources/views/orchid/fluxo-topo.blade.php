@@ -77,7 +77,12 @@
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+/**
+ * Função que contém TODO o comportamento original do painel.
+ * Nada foi alterado, apenas encapsulado.
+ */
+function iniciarPainelFluxo() {
+
     feather.replace();
 
     const notification = document.getElementById('calcNotification');
@@ -85,6 +90,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const details = document.getElementById('calcDetails');
     const icon = toggleButton.querySelector('i');
     const saldoTopo = document.getElementById('saldoRestanteTopo');
+
+    if (!notification || !toggleButton || !details || !icon || !saldoTopo) {
+        return; // DOM ainda não montado pelo Orchid
+    }
 
     let isMinimized = false;
 
@@ -102,5 +111,17 @@ document.addEventListener("DOMContentLoaded", () => {
     saldoTopo.addEventListener('click', () => {
         if (isMinimized) toggleMinimize();
     });
-});
+}
+
+/**
+ * Execução no carregamento normal (F5)
+ */
+document.addEventListener("DOMContentLoaded", iniciarPainelFluxo);
+
+/**
+ * Execução automática SEM F5
+ * Sempre que o ORCHID reconstruir o layout da tela.
+ */
+document.addEventListener("orchid:screen:render", iniciarPainelFluxo);
+document.addEventListener("turbo:load", iniciarPainelFluxo);
 </script>
