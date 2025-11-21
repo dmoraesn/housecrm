@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace App\Orchid\Screens;
+
 use App\Models\Fluxo;
 use App\Models\Lead;
 use App\Models\Proposta;
@@ -245,8 +246,8 @@ class FluxoScreen extends Screen
 
     public function saveFluxo(Request $request)
     {
-        $input  = $request->get('fluxo', []);
-        $status = $request->input('status', Fluxo::STATUS_COMPLETED);
+        $input = $request->get('fluxo', []);
+        $status = $request->input('status', Fluxo::STATUS_COMPLETED); // Verifica se o status foi passado corretamente
         $editable = [
             'lead_id', 'construtora_id', 'valor_imovel', 'valor_avaliacao',
             'base_calculo', 'modo_calculo', 'financiamento_percentual',
@@ -294,22 +295,30 @@ class FluxoScreen extends Screen
             ['id' => $input['id'] ?? null],
             $dados
         );
-        if ($status === Fluxo::STATUS_COMPLETED) {
-            Proposta::updateOrCreate(
-                ['fluxo_id' => $fluxo->id],
-                [
-                    'lead_id'                   => $fluxo->lead_id,
-                    'construtora_id'            => $fluxo->construtora_id,
-                    'valor_real'                => $fluxo->valor_imovel,
-                    'valor_entrada'             => $fluxo->valor_total_entrada,
-                    'valor_restante'            => $fluxo->valor_restante,
-                    'data_assinatura'           => $dataAssinatura,
-                    'status'                    => 'ativa',
-                ]
-            );
-            Toast::info('Fluxo salvo como Proposta! Acesse o menu Propostas.');
+        // Definir ou atualizar a proposta com status automático e garantir fluxo_id
+        $propostaStatus = ($status === Fluxo::STATUS_COMPLETED) ? 'ativa' : 'rascunho';
+        $proposta = Proposta::updateOrCreate(
+            ['fluxo_id' => $fluxo->id], // Garantir que fluxo_id seja usado como chave
+            [
+                'lead_id'                   => $fluxo->lead_id,
+                'construtora_id'            => $fluxo->construtora_id,
+                'valor_real'                => $fluxo->valor_imovel,
+                'valor_entrada'             => $fluxo->valor_total_entrada,
+                'valor_restante'            => $fluxo->valor_restante,
+                'data_assinatura'           => $dataAssinatura,
+                'status'                    => $propostaStatus,
+            ]
+        );
+        // Depuração para verificar o status salvo
+        \Log::info('Proposta salva: ID ' . ($proposta->id ?? 'novo') . ', Status: ' . $propostaStatus . ', Fluxo ID: ' . ($fluxo->id ?? 'nulo'));
+        if ($proposta) {
+            if ($status === Fluxo::STATUS_COMPLETED) {
+                Toast::info('Fluxo salvo como Proposta! Acesse o menu Propostas.');
+            } else {
+                Toast::info('Rascunho salvo com sucesso!');
+            }
         } else {
-            Toast::info('Rascunho salvo com sucesso!');
+            Toast::error('Falha ao salvar a proposta associada ao fluxo.');
         }
     }
 

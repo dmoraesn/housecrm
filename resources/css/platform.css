@@ -1,0 +1,11 @@
+.actions-wrapper .action-icon {
+    font-size: 18px;
+    color: #444;
+    padding: 4px;
+    border-radius: 6px;
+    transition: 0.2s;
+}
+
+.actions-wrapper .action-icon:hover {
+    background: #f0f0f0;
+}

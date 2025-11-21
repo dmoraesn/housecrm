@@ -1,46 +1,23 @@
-<div class="btn-group" role="group">
-    <a href="{{ $editRoute }}" class="btn btn-sm btn-primary" title="Editar">
-        <i class="icon-pencil"></i>
+<div class="d-flex justify-content-center gap-2">
+
+    {{-- Editar --}}
+    <a href="{{ $editRoute }}" class="text-primary" title="Editar">
+        <x-orchid-icon path="bs.pencil-square" class="icon-md" />
     </a>
 
-    @if(isset($viewRoute))
-        <a href="{{ $viewRoute }}" class="btn btn-sm btn-info" title="Visualizar">
-            <i class="icon-eye"></i>
-        </a>
-    @endif
+    {{-- Visualizar --}}
+    <a href="javascript:void(0)" class="text-secondary" title="Visualizar"
+       onclick="window.platform.modal({ title: 'Visualizar Proposta', size: 'xl', body: `<iframe src='{{ $viewRoute }}' style='width:100%;height:80vh;border:none;'></iframe>` })">
+        <x-orchid-icon path="bs.eye" class="icon-md" />
+    </a>
 
-    @if($delete ?? false)
-        <button
-            type="button"
-            class="btn btn-sm btn-danger"
-            onclick="confirmDelete('{{ $editRoute }}')"
-            title="Excluir">
-            <i class="icon-trash"></i>
+    {{-- Arquivar --}}
+    <form method="POST" action="{{ route('platform.propostas.archive') }}" class="d-inline">
+        @csrf
+        <input type="hidden" name="proposta" value="{{ $archiveId }}">
+        <button type="submit" class="btn-icon text-danger" title="Arquivar">
+            <x-orchid-icon path="bs.archive" class="icon-md" />
         </button>
-    @endif
+    </form>
+
 </div>
-
-<script>
-function confirmDelete(route) {
-    if (confirm('Tem certeza que deseja excluir esta proposta?')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = route;
-
-        const method = document.createElement('input');
-        method.type = 'hidden';
-        method.name = '_method';
-        method.value = 'DELETE';
-        form.appendChild(method);
-
-        const token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = '_token';
-        token.value = '{{ csrf_token() }}';
-        form.appendChild(token);
-
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-</script>
