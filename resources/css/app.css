@@ -1,24 +1,22 @@
 /* ==========================================================================
-   APP.CSS – Estilo base do HouseCRM com Tailwind + Orchid + Kanban
+   APP.CSS — Estilo Base do HouseCRM (Tailwind + Orchid + Kanban)
    ========================================================================== */
 
-/* ----------------------------
-   1. Importa Tailwind
-   ---------------------------- */
+/* ==========================================================================
+   1. TAILWIND
+   ========================================================================== */
 @import "tailwindcss";
 
-/* ----------------------------
-   2. Fontes e temas globais
-   ---------------------------- */
-/* OBS: O @theme é específico do Tailwind v4+. Se estiver usando v3, substitua por @layer base. */
+/* ==========================================================================
+   2. TEMA GLOBAL & FONTES
+   ========================================================================== */
 @layer base {
     :root {
         --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-            'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+                     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     }
 
-    html,
-    body {
+    html, body {
         font-family: var(--font-sans);
         background-color: #f7f8fa;
         color: #333;
@@ -27,9 +25,9 @@
     }
 }
 
-/* ----------------------------
-   3. Layout base Orchid
-   ---------------------------- */
+/* ==========================================================================
+   3. LAYOUT BASE ORCHID
+   ========================================================================== */
 .main-container {
     min-height: 100vh;
     display: flex;
@@ -41,16 +39,16 @@
     border-radius: 8px;
     background: #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease-in-out;
+    transition: box-shadow 0.2s ease-in-out;
 }
 
 .card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* ----------------------------
-   4. Orchid / Inputs / Botões
-   ---------------------------- */
+/* ==========================================================================
+   4. INPUTS & BOTÕES ORCHID
+   ========================================================================== */
 input,
 select,
 textarea,
@@ -62,16 +60,16 @@ button {
 .btn {
     font-weight: 600;
     border-radius: 6px;
-    transition: all 0.2s ease-in-out;
+    transition: transform 0.2s ease-in-out;
 }
 
 .btn:hover {
     transform: scale(1.02);
 }
 
-/* ----------------------------
-   5. Toasts globais
-   ---------------------------- */
+/* ==========================================================================
+   5. TOASTS
+   ========================================================================== */
 @layer components {
     .toast {
         position: fixed;
@@ -82,7 +80,9 @@ button {
         gap: 0.75rem;
         padding: 0.75rem 1rem;
         border-radius: 0.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow:
+            0 10px 15px -3px rgba(0, 0, 0, 0.1),
+            0 4px 6px -2px rgba(0, 0, 0, 0.05);
         color: #fff;
         font-weight: 500;
         font-size: 0.875rem;
@@ -96,26 +96,21 @@ button {
     .toast.show {
         opacity: 1;
         transform: translateY(0);
-        pointer-events: all;
+        pointer-events: auto;
     }
 
-    .toast-success {
-        background-color: #198754;
-    }
-
-    .toast-error {
-        background-color: #dc3545;
-    }
+    .toast-success { background-color: #198754; }
+    .toast-error   { background-color: #dc3545; }
 }
 
-/* ----------------------------
-   6. Importa CSS do Kanban
-   ---------------------------- */
+/* ==========================================================================
+   6. KANBAN
+   ========================================================================== */
 @import "./kanban.css";
 
-/* ----------------------------
-   7. Scrollbar global (opcional)
-   ---------------------------- */
+/* ==========================================================================
+   7. SCROLLBAR GLOBAL
+   ========================================================================== */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -130,17 +125,69 @@ button {
     background: #999;
 }
 
-/* ----------------------------
-   8. Responsividade base
-   ---------------------------- */
+/* ==========================================================================
+   8. RESPONSIVIDADE
+   ========================================================================== */
 @media (max-width: 768px) {
     .card {
         border-radius: 6px;
     }
+
     .toast {
         right: 10px;
         left: 10px;
         bottom: 10px;
         justify-content: center;
     }
+}
+
+/* ==========================================================================
+   9. BOTÕES COM ÍCONES (AÇÕES)
+   ========================================================================== */
+
+/* Botão de ícone utilizado na tabela de Propostas */
+.btn-icon {
+    background: transparent !important;
+    border: none !important;
+    padding: 4px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease-in-out;
+}
+
+.btn-icon:hover {
+    background: rgba(0,0,0,0.05) !important;
+    border-radius: 4px;
+}
+
+/* Ícones do Orchid (<x-orchid-icon>) */
+.btn-icon svg {
+    width: 20px !important;
+    height: 20px !important;
+    color: #444 !important;
+    opacity: 0.85;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.btn-icon:hover svg {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   10. ÍCONES EM TABELA (PADRONIZAÇÃO GLOBAL)
+   ========================================================================== */
+
+.icon-md {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+    opacity: 0.9;
+    transition: opacity .15s ease-in-out;
+}
+
+.icon-md:hover {
+    opacity: 1;
 }

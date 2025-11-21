@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +15,6 @@ class Proposta extends Model
     // ===================================================================
     // PROPRIEDADES DO MODELO
     // ===================================================================
-
     /**
      * Tabela associada ao modelo.
      */
@@ -35,10 +33,8 @@ class Proposta extends Model
         // Relacionamentos
         'lead_id',
         'construtora_id', // Novo: Usado em FluxoScreen
-
         // Status
         'status',
-
         // Inputs e Valores de Referência
         'valor_avaliacao',
         'valor_real',
@@ -48,7 +44,6 @@ class Proposta extends Model
         'data_assinatura', // NOVO CRÍTICO: Necessário para a PropostasListScreen
         'valor_parcela',
         'num_parcelas', // Mantido 'num_parcelas' por enquanto
-
         // Campos Calculados
         'valor_entrada',
         'total_parcelamento',
@@ -62,12 +57,10 @@ class Proposta extends Model
     protected $casts = [
         // JSON
         'baloes_json' => 'array',
-
         // Inteiros
         'lead_id'           => 'integer',
         'construtora_id'    => 'integer',
         'num_parcelas'      => 'integer',
-
         // Decimais (float/moeda)
         'valor_avaliacao'           => 'float',
         'valor_real'                => 'float',
@@ -78,7 +71,6 @@ class Proposta extends Model
         'valor_entrada'             => 'float',
         'total_parcelamento'        => 'float',
         'valor_restante'            => 'float',
-
         // Datas
         'data_assinatura'   => 'date', // CORREÇÃO CRÍTICA
         'created_at'        => 'datetime',
@@ -89,7 +81,7 @@ class Proposta extends Model
      * Valores padrão para atributos.
      */
     protected $attributes = [
-        'status' => 'rascunho',
+        'status' => 'rascunho', // Mantido como 'rascunho' por ser o estado inicial antes de completar o fluxo
         'valor_bonus_descontos' => 0.0,
         'valor_entrada' => 0.0,
         'total_parcelamento' => 0.0,
@@ -100,7 +92,6 @@ class Proposta extends Model
     // ===================================================================
     // RELACIONAMENTOS
     // ===================================================================
-
     /**
      * Lead associado à proposta.
      */
@@ -108,7 +99,7 @@ class Proposta extends Model
     {
         return $this->belongsTo(\App\Models\Lead::class, 'lead_id');
     }
-    
+
     /**
      * Construtora associada à proposta (adicionado para consistência).
      */
@@ -120,7 +111,6 @@ class Proposta extends Model
     // ===================================================================
     // SCOPES (FILTROS ÚTEIS)
     // ===================================================================
-
     /**
      * Scope: Propostas com diferença zero (equilibradas).
      */
