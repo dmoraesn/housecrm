@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Models;
@@ -15,12 +16,11 @@ class Fluxo extends Model
     use HasFactory;
 
     // ===================================================================
-    // CONSTANTES DE STATUS (CORREÇÃO CRÍTICA)
+    // CONSTANTES DE STATUS
     // ===================================================================
     public const STATUS_DRAFT = 'rascunho';
     public const STATUS_COMPLETED = 'concluido';
     public const STATUS_CANCELLED = 'cancelado';
-
 
     /**
      * Tabela vinculada ao modelo.
@@ -36,13 +36,23 @@ class Fluxo extends Model
      */
     protected $fillable = [
         'lead_id',
-        'construtora_id', // Adicionado: Faltava no $fillable, mas é usado no Screen
+        'construtora_id',
+        
+        // Valores Macro
         'valor_imovel',
         'valor_avaliacao',
         'valor_financiado',
         'valor_bonus_descontos',
-        'valor_assinatura_contrato',
+        
+        // Detalhes do Pagamento
+        'valor_assinatura_contrato', // Sinal
         'valor_na_chaves',
+        'data_chaves',               // Novo: Data prevista chaves
+        
+        'valor_cartorio',            // Novo: Valor do repasse/cartório
+        'data_cartorio',             // Novo: Data prevista repasse
+
+        // Parâmetros de Cálculo
         'entrada_minima',
         'parcelas_qtd',
         'valor_parcela',
@@ -52,9 +62,11 @@ class Fluxo extends Model
         'financiamento_percentual',
         'base_calculo',
         'modo_calculo',
+        
+        // Metadados
         'observacao',
         'status',
-        'baloes', // Adicionado: Faltava no $fillable, mas é usado no Screen (Matrix)
+        'baloes', // Array JSON das intermediárias
     ];
 
     /**
@@ -63,25 +75,32 @@ class Fluxo extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'baloes' => 'array', // Corrigido para array
-        'valor_imovel' => 'float',
-        'valor_avaliacao' => 'float',
-        'valor_financiado' => 'float',
-        'valor_bonus_descontos' => 'float',
+        'baloes' => 'array',
+        
+        // Floats / Moeda
+        'valor_imovel'              => 'float',
+        'valor_avaliacao'           => 'float',
+        'valor_financiado'          => 'float',
+        'valor_bonus_descontos'     => 'float',
         'valor_assinatura_contrato' => 'float',
-        'valor_na_chaves' => 'float',
-        'entrada_minima' => 'float',
-        'valor_parcela' => 'float',
-        'total_parcelamento' => 'float',
-        'valor_total_entrada' => 'float',
-        'valor_restante' => 'float',
-        'financiamento_percentual' => 'float',
+        'valor_na_chaves'           => 'float',
+        'valor_cartorio'            => 'float', // Novo
+        'entrada_minima'            => 'float',
+        'valor_parcela'             => 'float',
+        'total_parcelamento'        => 'float',
+        'valor_total_entrada'       => 'float',
+        'valor_restante'            => 'float',
+        'financiamento_percentual'  => 'float',
+        
+        // Datas
+        'data_chaves'   => 'date', // Novo
+        'data_cartorio' => 'date', // Novo
+        'created_at'    => 'datetime',
+        'updated_at'    => 'datetime',
     ];
 
     /**
      * Relacionamento: Fluxo pertence a um Lead.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function lead()
     {
@@ -112,4 +131,3 @@ class Fluxo extends Model
         return $query->where('status', self::STATUS_COMPLETED);
     }
 }
-// 93 linhas mantidas
