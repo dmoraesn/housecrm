@@ -11,6 +11,8 @@ use Orchid\Platform\OrchidServiceProvider;
 use Orchid\Screen\Actions\Menu;
 use App\Orchid\Http\Middleware\Access;
 
+
+
 /**
  * Provedor de serviços para configuração do painel Orchid.
  */
@@ -114,4 +116,20 @@ class PlatformProvider extends OrchidServiceProvider
 
         return $permission;
     }
+
+
+public function registerMainMenu(): array
+{
+    return [
+        // ... seus outros menus ...
+
+        Menu::make('Configurações')
+            ->icon('bs.gear')
+            ->route('platform.configuracoes')
+            ->title('Sistema'),
+            // ->permission('platform.systems.settings'), // Opcional: Adicionar permissão depois
+    ];
+}
+
+
 }

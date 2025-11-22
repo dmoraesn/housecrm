@@ -6,8 +6,45 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder; // Importação adicionada para tipagem de scope
+use Illuminate\Database\Eloquent\Builder;
 use Orchid\Screen\AsSource;
+
+enum LeadStatus: string
+{
+    case NOVO = 'novo';
+    case QUALIFICACAO = 'qualificacao';
+    case VISITA = 'visita';
+    case NEGOCIACAO = 'negociacao';
+    case FECHAMENTO = 'fechamento';
+    case PERDIDO = 'perdido';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::NOVO => 'Novo Lead',
+            self::QUALIFICACAO => 'Qualificação',
+            self::VISITA => 'Visita Marcada',
+            self::NEGOCIACAO => 'Negociação',
+            self::FECHAMENTO => 'Fechamento',
+            self::PERDIDO => 'Perdido',
+        };
+    }
+}
+
+enum LeadOrigem: string
+{
+    case SITE = 'Site';
+    case INSTAGRAM = 'Instagram';
+    case FACEBOOK = 'Facebook';
+    case INDICACAO = 'Indicação';
+    case ANUNCIO = 'Anúncio';
+    case WHATSAPP = 'WhatsApp';
+    case GOOGLE = 'Google';
+    case EMAIL = 'Email';
+    case TELEFONE = 'Telefone';
+    case EVENTO = 'Evento';
+    case OUTRO = 'Outro';
+}
 
 class Lead extends Model
 {
@@ -23,6 +60,7 @@ class Lead extends Model
         'nome',
         'email',
         'telefone',
+        'documento', // Adicionado para suportar a view (verificar se existe na tabela)
         'origem',
         'mensagem',
         'status',
@@ -34,16 +72,13 @@ class Lead extends Model
     ];
 
     protected $casts = [
-        'data_contato'    => 'datetime',
+        'data_contato' => 'datetime',
         'valor_interesse' => 'decimal:2',
-        'order'           => 'integer',
+        'order' => 'integer',
+        'status' => LeadStatus::class,
+        'origem' => LeadOrigem::class,
     ];
 
-    /**
-     * Os atributos "appended" que devem ser adicionados ao array do modelo.
-     *
-     * @var array
-     */
     protected $appends = [
         'status_label',
         'status_badge',
@@ -55,24 +90,13 @@ class Lead extends Model
     // CONSTANTES
     // ===================================================================
 
-    public const STATUS = [
-        'novo'         => 'Novo Lead',
-        'qualificacao' => 'Qualificação',
-        'visita'       => 'Visita Marcada',
-        'negociacao'   => 'Negociação',
-        'fechamento'   => 'Fechamento',
-        'perdido'      => 'Perdido',
+    public const FLUXO_VENDAS = [
+        LeadStatus::NOVO->value,
+        LeadStatus::QUALIFICACAO->value,
+        LeadStatus::VISITA->value,
+        LeadStatus::NEGOCIACAO->value,
+        LeadStatus::FECHAMENTO->value,
     ];
-
-    public const ORIGENS = [
-        'Site', 'Instagram', 'Facebook', 'Indicação', 'Anúncio',
-        'WhatsApp', 'Google', 'Email', 'Telefone', 'Evento', 'Outro'
-    ];
-
-    /**
-     * Define o fluxo de status válidos para avanço.
-     */
-    public const FLUXO_VENDAS = ['novo', 'qualificacao', 'visita', 'negociacao', 'fechamento'];
 
     // ===================================================================
     // RELACIONAMENTOS
@@ -119,7 +143,7 @@ class Lead extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return self::STATUS[$this->status] ?? 'Indefinido';
+        return $this->status->label();
     }
 
     /**
@@ -128,15 +152,15 @@ class Lead extends Model
     public function getStatusBadgeAttribute(): string
     {
         $colors = [
-            'novo'         => 'bg-info text-white',
-            'qualificacao' => 'bg-primary text-white', // Adicionado text-white para consistência
-            'visita'       => 'bg-warning text-dark',
-            'negociacao'   => 'bg-warning text-dark', // <-- CORRIGIDO: Usa a classe Warning (Amarelo) com texto ESCURO
-            'fechamento'   => 'bg-success text-white', // Adicionado text-white para consistência
-            'perdido'      => 'bg-danger text-white', // Adicionado text-white para consistência
+            LeadStatus::NOVO->value => 'bg-info text-white',
+            LeadStatus::QUALIFICACAO->value => 'bg-primary text-white',
+            LeadStatus::VISITA->value => 'bg-warning text-dark',
+            LeadStatus::NEGOCIACAO->value => 'bg-warning text-dark',
+            LeadStatus::FECHAMENTO->value => 'bg-success text-white',
+            LeadStatus::PERDIDO->value => 'bg-danger text-white',
         ];
 
-        $color = $colors[$this->status] ?? 'bg-secondary text-white'; // Fallback com texto claro
+        $color = $colors[$this->status->value] ?? 'bg-secondary text-white';
         return "<span class=\"badge {$color} fw-semibold\">{$this->status_label}</span>";
     }
 
@@ -145,14 +169,15 @@ class Lead extends Model
      */
     public function getTelefoneFormatadoAttribute(): ?string
     {
-        if (!$this->telefone) return null;
+        if (!$this->telefone) {
+            return null;
+        }
 
         $digits = preg_replace('/\D/', '', $this->telefone);
 
-        // Formata baseado no tamanho (11 = celular, 10 = fixo)
         return match (strlen($digits)) {
-            11      => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}{$digits[5]}-{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}{$digits[10]}",
-            10      => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}-{$digits[5]}{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}",
+            11 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}{$digits[5]}-{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}{$digits[10]}",
+            10 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}-{$digits[5]}{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}",
             default => $this->telefone,
         };
     }
@@ -162,15 +187,14 @@ class Lead extends Model
      */
     public function getWhatsappLinkAttribute(): ?string
     {
-        if (!$this->telefone) return null;
-        $clean = preg_replace('/\D/', '', $this->telefone);
-
-        // Adiciona o 55 (Brasil) se não estiver presente nos formatos comuns
-        if (strlen($clean) <= 11) {
-            $clean = "55{$clean}";
+        if (!$this->telefone) {
+            return null;
         }
 
-        return "https://wa.me/{$clean}";
+        $clean = preg_replace('/\D/', '', $this->telefone);
+        $prefix = strlen($clean) <= 11 ? '55' : '';
+
+        return "https://wa.me/{$prefix}{$clean}";
     }
 
     // ===================================================================
@@ -179,25 +203,29 @@ class Lead extends Model
 
     /**
      * Retorna os status formatados para uso em Selects (Orchid).
+     *
+     * @return array<string, string>
      */
     public static function statusOptions(): array
     {
         return [
-            'novo'         => '1 Novo Lead / Descoberta',
-            'qualificacao' => '2 Qualificação / Entendimento',
-            'visita'       => '3 Apresentação / Visita',
-            'negociacao'   => '4 Proposta / Negociação',
-            'fechamento'   => '5 Fechamento / Contrato',
-            'perdido'      => '6 Perdido',
+            LeadStatus::NOVO->value => '1 Novo Lead / Descoberta',
+            LeadStatus::QUALIFICACAO->value => '2 Qualificação / Entendimento',
+            LeadStatus::VISITA->value => '3 Apresentação / Visita',
+            LeadStatus::NEGOCIACAO->value => '4 Proposta / Negociação',
+            LeadStatus::FECHAMENTO->value => '5 Fechamento / Contrato',
+            LeadStatus::PERDIDO->value => '6 Perdido',
         ];
     }
 
     /**
      * Retorna as origens para uso em Selects (Orchid).
+     *
+     * @return array<string, string>
      */
     public static function origemOptions(): array
     {
-        return array_combine(self::ORIGENS, self::ORIGENS);
+        return array_column(LeadOrigem::cases(), 'value', 'value');
     }
 
     // ===================================================================
@@ -209,29 +237,27 @@ class Lead extends Model
      */
     public function avancarEtapa(): bool
     {
-        $index = array_search($this->status, self::FLUXO_VENDAS);
+        $index = array_search($this->status->value, self::FLUXO_VENDAS);
 
-        // Não avança se status não está no fluxo ou se já é o último
         if ($index === false || $index === count(self::FLUXO_VENDAS) - 1) {
             return false;
         }
 
-        $this->status = self::FLUXO_VENDAS[$index + 1];
-
-        // O evento 'booted::updating' cuidará da reordenação automaticamente.
-
+        $this->status = LeadStatus::from(self::FLUXO_VENDAS[$index + 1]);
         return $this->save();
     }
 
     /**
      * Marca o lead como perdido, opcionalmente adicionando um motivo.
      */
-    public function marcarComoPerdido(string $motivo = null): bool
+    public function marcarComoPerdido(?string $motivo = null): bool
     {
-        $this->status = 'perdido';
+        $this->status = LeadStatus::PERDIDO;
+
         if ($motivo) {
             $this->observacoes = "Perdido: {$motivo}\n\n" . ($this->observacoes ?? '');
         }
+
         return $this->save();
     }
 
@@ -252,12 +278,11 @@ class Lead extends Model
      */
     public function scopeNovo(Builder $query): Builder
     {
-        return $query->where('status', 'novo');
+        return $query->where('status', LeadStatus::NOVO);
     }
 
     /**
      * Filtra leads que estão no fluxo de vendas ativo (não perdidos/ganhos).
-     * Mantém a nomenclatura singular, conforme a recomendação.
      */
     public function scopeAtivo(Builder $query): Builder
     {
@@ -289,31 +314,21 @@ class Lead extends Model
     }
 
     // ===================================================================
-    // EVENTOS (Observers do Model)
+    // EVENTOS
     // ===================================================================
 
     /**
-     * O método "booted" do modelo.
+     * Define valores padrão e reordena ao criar ou atualizar um lead.
      */
     protected static function booted(): void
     {
-        /**
-         * Define valores padrão ao criar um novo lead.
-         */
         static::creating(function (self $lead) {
-            // Garante que o status seja 'novo' se nenhum for fornecido
-            $lead->status ??= 'novo';
-            // Define a ordem inicial para o status
+            $lead->status ??= LeadStatus::NOVO;
             $lead->order ??= self::nextOrderForStatus($lead->status);
         });
 
-        /**
-         * Reordena o lead se o status for alterado.
-         */
         static::updating(function (self $lead) {
-            // Verifica se o campo 'status' foi modificado
             if ($lead->isDirty('status')) {
-                // Atribui a nova ordem baseada no *novo* status
                 $lead->order = self::nextOrderForStatus($lead->status);
             }
         });
@@ -321,19 +336,9 @@ class Lead extends Model
 
     /**
      * Calcula a próxima posição de 'order' para um determinado status.
-     * (Função de suporte para reordenação)
      */
-    private static function nextOrderForStatus(string $status): int
+    private static function nextOrderForStatus(LeadStatus $status): int
     {
-        // Pega a ordem máxima atual para esse status e soma 1
         return (int) self::where('status', $status)->max('order') + 1;
-    }
-
-    /**
-     * Função privada de reordenação (Não mais usada por avancarEtapa).
-     */
-    private function reordenarNoFluxo(): void
-    {
-        $this->order = self::nextOrderForStatus($this->status);
     }
 }
