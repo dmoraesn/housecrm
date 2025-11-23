@@ -87,44 +87,49 @@ class LeadKanbanScreen extends Screen
      * @param UpdateKanbanRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateKanban(UpdateKanbanRequest $request) // <-- Usando o Form Request
-    {
-        // 1. Os dados já foram validados pelo Form Request
-        $data = $request->validated();
+ public function updateKanban(UpdateKanbanRequest $request)
+{
+    $leadId = $request->id;
+    $newStatus = $request->status;
+    $newOrder = $request->order;
 
-        $leadId = $data['id'];
-        $newStatus = $data['status'];
-        $columnOrder = $data['column_order'];
+    try {
+        DB::transaction(function () use ($leadId, $newStatus, $newOrder) {
 
-        try {
-            DB::transaction(function () use ($leadId, $newStatus, $columnOrder) {
+            // Atualiza o lead movido
+            $lead = Lead::findOrFail($leadId);
+            $lead->status = $newStatus;
+            $lead->order = $newOrder;
+            $lead->save();
 
-                // A. Atualizar o status e a ordem do lead que foi arrastado
-                $lead = Lead::findOrFail($leadId);
-                $lead->status = $newStatus;
+            // Reordena todos os leads da coluna
+            $leads = Lead::where('status', $newStatus)
+                ->where('id', '!=', $leadId)
+                ->orderBy('order')
+                ->get();
 
-                // Procuramos a nova ordem dentro da lista enviada pelo frontend
-                $newOrder = collect($columnOrder)->firstWhere('id', $leadId)['order'];
-                $lead->order = $newOrder;
-                $lead->save();
+            $order = 0;
 
-                // B. Aplicar a ordem para TODOS os leads na nova coluna
-                foreach ($columnOrder as $item) {
-                    Lead::where('id', $item['id'])->update(['order' => $item['order']]);
+            foreach ($leads as $l) {
+                if ($order == $newOrder) {
+                    $order++;
                 }
-            });
+                $l->order = $order++;
+                $l->save();
+            }
+        });
 
-            return response()->json([
-                'success' => true,
-                'message' => "Lead #{$leadId} movido para '{$newStatus}' e reordenado."
-            ]);
+        return response()->json([
+            'success' => true,
+            'message' => "Lead $leadId movido para $newStatus"
+        ]);
 
-        } catch (\Throwable $e) {
-            // Em caso de qualquer erro, retorna 500 para o frontend
-            return response()->json([
-                'success' => false,
-                'message' => 'Falha na atualização do Kanban: ' . $e->getMessage(),
-            ], 500);
-        }
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'message' => "Erro ao atualizar Kanban: " . $e->getMessage()
+        ], 500);
     }
+}
+
 }

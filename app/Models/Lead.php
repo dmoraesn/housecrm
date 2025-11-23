@@ -2,34 +2,17 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 use Orchid\Screen\AsSource;
 
-enum LeadStatus: string
-{
-    case NOVO = 'novo';
-    case QUALIFICACAO = 'qualificacao';
-    case VISITA = 'visita';
-    case NEGOCIACAO = 'negociacao';
-    case FECHAMENTO = 'fechamento';
-    case PERDIDO = 'perdido';
+use OpenAI; // Import para o cliente OpenAI (pacote openai-php/client)
 
-    public function label(): string
-    {
-        return match ($this) {
-            self::NOVO => 'Novo Lead',
-            self::QUALIFICACAO => 'Qualificação',
-            self::VISITA => 'Visita Marcada',
-            self::NEGOCIACAO => 'Negociação',
-            self::FECHAMENTO => 'Fechamento',
-            self::PERDIDO => 'Perdido',
-        };
-    }
-}
+use AITemplate; // Import para o modelo de templates de IA
+use App\Enums\LeadStatus; // Import do enum compartilhado
 
 enum LeadOrigem: string
 {
@@ -50,17 +33,13 @@ class Lead extends Model
 {
     use HasFactory, AsSource;
 
-    // ===================================================================
-    // CONFIGURAÇÃO
-    // ===================================================================
-
     protected $table = 'leads';
 
     protected $fillable = [
         'nome',
         'email',
         'telefone',
-        'documento', // Adicionado para suportar a view (verificar se existe na tabela)
+        'documento',
         'origem',
         'mensagem',
         'status',
@@ -69,6 +48,7 @@ class Lead extends Model
         'valor_interesse',
         'observacoes',
         'order',
+        'historico_interacoes',
     ];
 
     protected $casts = [
@@ -77,6 +57,7 @@ class Lead extends Model
         'order' => 'integer',
         'status' => LeadStatus::class,
         'origem' => LeadOrigem::class,
+        'historico_interacoes' => 'array',
     ];
 
     protected $appends = [
@@ -84,11 +65,8 @@ class Lead extends Model
         'status_badge',
         'telefone_formatado',
         'whatsapp_link',
+        'historico_formatado',
     ];
-
-    // ===================================================================
-    // CONSTANTES
-    // ===================================================================
 
     public const FLUXO_VENDAS = [
         LeadStatus::NOVO->value,
@@ -98,57 +76,31 @@ class Lead extends Model
         LeadStatus::FECHAMENTO->value,
     ];
 
-    // ===================================================================
-    // RELACIONAMENTOS
-    // ===================================================================
-
-    /**
-     * O corretor (User) associado a este lead.
-     */
     public function corretor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    /**
-     * As propostas associadas a este lead.
-     */
     public function propostas(): HasMany
     {
         return $this->hasMany(Proposta::class, 'lead_id');
     }
 
-    /**
-     * Os contratos associados a este lead.
-     */
     public function contratos(): HasMany
     {
         return $this->hasMany(Contrato::class, 'lead_id');
     }
 
-    /**
-     * Os imóveis de interesse associados a este lead.
-     */
     public function imoveisInteresse(): HasMany
     {
         return $this->hasMany(ImovelInteresse::class, 'lead_id');
     }
 
-    // ===================================================================
-    // ACCESSORS
-    // ===================================================================
-
-    /**
-     * Retorna o rótulo legível do status atual.
-     */
     public function getStatusLabelAttribute(): string
     {
         return $this->status->label();
     }
 
-    /**
-     * Retorna um badge HTML (Bootstrap) para o status atual.
-     */
     public function getStatusBadgeAttribute(): string
     {
         $colors = [
@@ -161,12 +113,10 @@ class Lead extends Model
         ];
 
         $color = $colors[$this->status->value] ?? 'bg-secondary text-white';
+
         return "<span class=\"badge {$color} fw-semibold\">{$this->status_label}</span>";
     }
 
-    /**
-     * Formata o número de telefone (detecta 10 ou 11 dígitos).
-     */
     public function getTelefoneFormatadoAttribute(): ?string
     {
         if (!$this->telefone) {
@@ -182,9 +132,6 @@ class Lead extends Model
         };
     }
 
-    /**
-     * Gera um link direto "clique para conversar" do WhatsApp.
-     */
     public function getWhatsappLinkAttribute(): ?string
     {
         if (!$this->telefone) {
@@ -197,44 +144,51 @@ class Lead extends Model
         return "https://wa.me/{$prefix}{$clean}";
     }
 
-    // ===================================================================
-    // MÉTODOS ESTÁTICOS
-    // ===================================================================
+    public function getHistoricoFormatadoAttribute(): string
+    {
+        if (empty($this->historico_interacoes)) {
+            return '<p class="text-muted">Nenhuma interação registrada.</p>';
+        }
 
-    /**
-     * Retorna os status formatados para uso em Selects (Orchid).
-     *
-     * @return array<string, string>
-     */
+        $html = '<div class="timeline">';
+
+        foreach (array_reverse($this->historico_interacoes) as $interacao) {
+            $data = $interacao['data'] ?? now()->toDateTimeString();
+            $acao = $interacao['acao'] ?? 'Ação';
+            $mensagem = $interacao['mensagem'] ?? '';
+            $resposta = $interacao['resposta'] ?? null;
+
+            $html .= "
+                <div class=\"timeline-item\">
+                    <small>{$data}</small><br>
+                    <strong>{$acao}:</strong> {$mensagem}
+                    " . ($resposta ? "<br><em>Resposta: {$resposta}</em>" : '') . "
+                </div>
+            ";
+        }
+
+        $html .= '</div>';
+
+        return $html;
+    }
+
     public static function statusOptions(): array
     {
         return [
-            LeadStatus::NOVO->value => '1 Novo Lead / Descoberta',
-            LeadStatus::QUALIFICACAO->value => '2 Qualificação / Entendimento',
-            LeadStatus::VISITA->value => '3 Apresentação / Visita',
-            LeadStatus::NEGOCIACAO->value => '4 Proposta / Negociação',
-            LeadStatus::FECHAMENTO->value => '5 Fechamento / Contrato',
-            LeadStatus::PERDIDO->value => '6 Perdido',
+            LeadStatus::NOVO->value => LeadStatus::NOVO->label(),
+            LeadStatus::QUALIFICACAO->value => LeadStatus::QUALIFICACAO->label(),
+            LeadStatus::VISITA->value => LeadStatus::VISITA->label(),
+            LeadStatus::NEGOCIACAO->value => LeadStatus::NEGOCIACAO->label(),
+            LeadStatus::FECHAMENTO->value => LeadStatus::FECHAMENTO->label(),
+            LeadStatus::PERDIDO->value => LeadStatus::PERDIDO->label(),
         ];
     }
 
-    /**
-     * Retorna as origens para uso em Selects (Orchid).
-     *
-     * @return array<string, string>
-     */
     public static function origemOptions(): array
     {
         return array_column(LeadOrigem::cases(), 'value', 'value');
     }
 
-    // ===================================================================
-    // MÉTODOS DE NEGÓCIO
-    // ===================================================================
-
-    /**
-     * Avança o lead para a próxima etapa do funil de vendas.
-     */
     public function avancarEtapa(): bool
     {
         $index = array_search($this->status->value, self::FLUXO_VENDAS);
@@ -244,12 +198,10 @@ class Lead extends Model
         }
 
         $this->status = LeadStatus::from(self::FLUXO_VENDAS[$index + 1]);
+
         return $this->save();
     }
 
-    /**
-     * Marca o lead como perdido, opcionalmente adicionando um motivo.
-     */
     public function marcarComoPerdido(?string $motivo = null): bool
     {
         $this->status = LeadStatus::PERDIDO;
@@ -261,70 +213,101 @@ class Lead extends Model
         return $this->save();
     }
 
-    /**
-     * Verifica se o lead já possui alguma proposta.
-     */
     public function temProposta(): bool
     {
         return $this->propostas()->exists();
     }
 
-    // ===================================================================
-    // SCOPES
-    // ===================================================================
-
-    /**
-     * Filtra leads que estão no status 'novo'.
-     */
-    public function scopeNovo(Builder $query): Builder
+    public function gerarFollowUpIA(): array
     {
-        return $query->where('status', LeadStatus::NOVO);
+        $template = AITemplate::getTemplate($this->status->value);
+        if (!$template) {
+            return ['success' => false, 'message' => 'Status não suportado para IA.'];
+        }
+
+        $data = [
+            'nome' => $this->nome ?? '',
+            'email' => $this->email ?? '',
+            'telefone' => $this->telefone_formatado ?? '',
+            'origem' => $this->origem->value ?? '',
+            'mensagem' => $this->mensagem ?? '',
+            'valor_interesse' => $this->valor_interesse ?? '',
+            'observacoes' => $this->observacoes ?? '',
+        ];
+
+        $prompt = AITemplate::getFormattedPrompt($this->status->value, $data);
+
+        try {
+            $client = OpenAI::client(env('OPENAI_API_KEY'));
+            $response = $client->chat()->create([
+                'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+                'messages' => [['role' => 'user', 'content' => $prompt]],
+                'max_tokens' => $template['max_tokens'],
+                'temperature' => 0.7,
+            ]);
+
+            $mensagemGerada = trim($response->choices[0]->message->content);
+
+            $historicoAtual = $this->historico_interacoes ?? [];
+            $historicoAtual[] = [
+                'data' => now()->toDateTimeString(),
+                'acao' => 'followup_ia',
+                'mensagem' => $mensagemGerada,
+                'resposta' => null,
+            ];
+            $this->historico_interacoes = $historicoAtual;
+            $this->save();
+
+            return ['success' => true, 'message' => $mensagemGerada];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => 'Erro na API: ' . $e->getMessage()];
+        }
     }
 
-    /**
-     * Filtra leads que estão no fluxo de vendas ativo (não perdidos/ganhos).
-     */
+    public function adicionarRespostaHistorico(string $resposta): void
+    {
+        if (!empty($this->historico_interacoes)) {
+            $ultima = end($this->historico_interacoes);
+
+            if ($ultima['acao'] === 'followup_ia' && is_null($ultima['resposta'])) {
+                $ultima['resposta'] = $resposta;
+                $this->historico_interacoes[array_key_last($this->historico_interacoes)] = $ultima;
+                $this->save();
+            }
+        }
+    }
+
+    public function scopeNovo(Builder $query): Builder
+    {
+        return $query->where('status', LeadStatus::NOVO->value);
+    }
+
     public function scopeAtivo(Builder $query): Builder
     {
         return $query->whereIn('status', self::FLUXO_VENDAS);
     }
 
-    /**
-     * Filtra leads que ainda não foram atribuídos a um corretor.
-     */
     public function scopeSemCorretor(Builder $query): Builder
     {
         return $query->whereNull('user_id');
     }
 
-    /**
-     * Filtra leads atribuídos a um corretor específico.
-     */
     public function scopeDoCorretor(Builder $query, int $userId): Builder
     {
         return $query->where('user_id', $userId);
     }
 
-    /**
-     * Filtra leads criados na data de hoje.
-     */
     public function scopeHoje(Builder $query): Builder
     {
         return $query->whereDate('created_at', today());
     }
 
-    // ===================================================================
-    // EVENTOS
-    // ===================================================================
-
-    /**
-     * Define valores padrão e reordena ao criar ou atualizar um lead.
-     */
     protected static function booted(): void
     {
         static::creating(function (self $lead) {
             $lead->status ??= LeadStatus::NOVO;
             $lead->order ??= self::nextOrderForStatus($lead->status);
+            $lead->historico_interacoes ??= [];
         });
 
         static::updating(function (self $lead) {
@@ -334,11 +317,8 @@ class Lead extends Model
         });
     }
 
-    /**
-     * Calcula a próxima posição de 'order' para um determinado status.
-     */
     private static function nextOrderForStatus(LeadStatus $status): int
     {
-        return (int) self::where('status', $status)->max('order') + 1;
+        return (int) self::where('status', $status->value)->max('order') + 1;
     }
 }

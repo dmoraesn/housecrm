@@ -11,7 +11,7 @@ use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Actions\Button;
 use Orchid\Support\Color;
 use Illuminate\Http\Request;
-use Orchid\Support\Facades\Toast; // Adicionado para correção do erro Call to undefined function
+use Orchid\Support\Facades\Toast;
 
 class LeadEditScreen extends Screen
 {
@@ -49,15 +49,16 @@ class LeadEditScreen extends Screen
     public function badge(): ?array
     {
         $statusMap = [
-            'novo' => Color::INFO(),          // Novo Lead (Azul Claro)
+            'novo' => Color::INFO(),         // Novo Lead (Azul Claro)
             'qualificacao' => Color::PRIMARY(),  // Qualificação (Azul)
             'visita' => Color::WARNING(),     // Visita Marcada (Amarelo)
             'negociacao' => Color::WARNING(), // Negociação (Amarelo/Laranja - Cor de atenção)
             'fechamento' => Color::SUCCESS(),    // Fechamento (Verde)
-            'perdido' => Color::DANGER(),        // Perdido (Vermelho)
+            'perdido' => Color::DANGER(),       // Perdido (Vermelho)
         ];
 
-        $statusKey = $this->lead->status;
+        // Se $this->lead->status é um Enum, o PHP tentará convertê-lo para string (seu valor)
+        $statusKey = $this->lead->status->value ?? $this->lead->status; 
         $color = $statusMap[$statusKey] ?? Color::SECONDARY(); // Cor padrão
 
         return [
@@ -75,8 +76,6 @@ class LeadEditScreen extends Screen
                 ->method('save')
                 ->type(Color::PRIMARY())
                 ->icon('check'),
-
-
 
             Button::make('Excluir')
                 ->method('remove')
@@ -110,7 +109,8 @@ class LeadEditScreen extends Screen
                     ->options(User::pluck('name', 'id')->toArray())
                     ->empty('Sem corretor'),
 
-                Select::make('lead.origem')
+                // CORREÇÃO: Usando 'lead.origem.value' para acessar a string primitiva do Enum
+                Select::make('lead.origem.value')
                     ->title('Origem')
                     ->options([
                         'Site' => 'Site',
@@ -127,7 +127,7 @@ class LeadEditScreen extends Screen
                     ])
                     ->empty('Selecione uma origem'),
 
-                Select::make('lead.status')
+                Select::make('lead.status.value')
                     ->title('Etapa do Funil')
                     ->required()
                     ->options([
