@@ -7,7 +7,7 @@ namespace App\Orchid\Screens;
 use App\Models\Proposta;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
-use Orchid\Screen\Actions\DropDown; 
+use Orchid\Screen\Actions\DropDown;
 use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
@@ -20,28 +20,27 @@ class PropostasListScreen extends Screen
     public $description = 'Listagem e gerenciamento de propostas ativas.';
 
     /**
-     * Define os status que são considerados ATIVOS para esta tela.
+     * Status considerados ATIVOS
      */
     private const ACTIVE_STATUSES = [
-        'rascunho', 
+        'rascunho',
         'novo',
         'analise',
         'enviado',
         'revisao',
         'aceito',
-        'ativa', // CORREÇÃO APLICADA: Incluindo 'ativa' como status válido
-        // Excluímos: 'recusado', 'vendida', 'cancelada', 'arquivada'
+        'ativa',
     ];
 
     /**
-     * Query das propostas ativas
+     * Query das propostas
      */
     public function query(): iterable
     {
         return [
             'propostas' => Proposta::with('lead')
                 ->filters()
-                ->whereIn('status', self::ACTIVE_STATUSES) 
+                ->whereIn('status', self::ACTIVE_STATUSES)
                 ->orderBy('id', 'desc')
                 ->paginate(),
         ];
@@ -56,6 +55,7 @@ class PropostasListScreen extends Screen
             Link::make('Arquivadas')
                 ->icon('bs.folder')
                 ->route('platform.propostas.arquivadas'),
+
             Link::make('Nova Proposta')
                 ->icon('bs.plus')
                 ->route('platform.propostas.create'),
@@ -72,10 +72,9 @@ class PropostasListScreen extends Screen
                 TD::make('ordem', '#')
                     ->width('80px')
                     ->render(function (Proposta $p, $loop) {
-                        $query = request()->route()->controller->query();
-                        $pag = $query['propostas'] ?? null;
-                        return $pag
-                            ? $pag->firstItem() + $loop->index
+                        $pagination = request()->route()->controller->query()['propostas'] ?? null;
+                        return $pagination
+                            ? $pagination->firstItem() + $loop->index
                             : $loop->iteration;
                     }),
 
@@ -98,14 +97,14 @@ class PropostasListScreen extends Screen
                     ),
 
                 TD::make('status', 'Status')
-                    ->align(TD::ALIGN_CENTER)
+                    ->alignCenter()
                     ->render(fn(Proposta $p) =>
                         view('components.status-badge', ['status' => $p->status])
                     ),
 
                 TD::make('Ações')
-                    ->align(TD::ALIGN_CENTER)
-                    ->width('100px')
+                    ->alignCenter()
+                    ->width('130px')
                     ->render(fn(Proposta $p) => DropDown::make()
                         ->icon('bs.three-dots-vertical')
                         ->list([
@@ -129,7 +128,7 @@ class PropostasListScreen extends Screen
     }
 
     /**
-     * Arquiva proposta
+     * Arquiva uma proposta
      */
     public function archive(Request $request)
     {
@@ -138,7 +137,9 @@ class PropostasListScreen extends Screen
         $proposta->save();
 
         Alert::info("Proposta arquivada com sucesso!");
-        return redirect()->route('platform.propostas');
+
+        // CORREÇÃO AQUI
+        return redirect()->route('platform.propostas.index');
     }
 
     /**
@@ -147,10 +148,13 @@ class PropostasListScreen extends Screen
     public function unarchive(Request $request)
     {
         $proposta = Proposta::findOrFail($request->input('proposta'));
-        $proposta->status = 'ativo';
+
+        // status correto para retornar à listagem de ativos
+        $proposta->status = 'ativa';
         $proposta->save();
 
         Alert::success("Proposta desarquivada com sucesso!");
+
         return redirect()->route('platform.propostas.arquivadas');
     }
 }

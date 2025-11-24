@@ -1,11 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Orchid\Screens;
 
 use App\Models\Proposta;
+use Orchid\Screen\Actions\Button; // Adicionado Button
 use Orchid\Screen\Actions\Link;
-use Orchid\Support\Facades\Layout;
+use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
+use Orchid\Support\Facades\Layout;
+use Orchid\Screen\Actions\DropDown; // Adicionado DropDown
 
 class PropostasArquivadasScreen extends PropostasListScreen
 {
@@ -40,9 +45,11 @@ class PropostasArquivadasScreen extends PropostasListScreen
 
     /**
      * Layout da tabela
+     * Sobrescreve o layout do pai para adicionar a ação Desarquivar.
      */
     public function layout(): iterable
     {
+        // Obtemos as colunas padrão, mas modificamos a coluna 'Ações'
         return [
             Layout::table('propostas', [
                 TD::make('ordem', '#')
@@ -74,18 +81,25 @@ class PropostasArquivadasScreen extends PropostasListScreen
                     ->render(fn(Proposta $p) =>
                         view('components.status-badge', ['status' => $p->status])
                     ),
+
+                // Coluna Ações: Modificada para Desarquivar
                 TD::make('Ações')
                     ->align(TD::ALIGN_CENTER)
-                    ->width('160px')
-                    ->render(fn(Proposta $p) =>
-                        view('components.table-actions', [
-                            'editRoute'  => route('platform.propostas.edit', $p),
-                            'pdfRoute'   => route('platform.propostas.pdf', $p),
-                            'viewRoute'  => route('platform.propostas.edit', $p), // Correção para $viewRoute
-                            'archiveId'  => $p->id,
-                            'isArchived' => true,
-                        ])
-                    ),
+                    ->width('100px')
+                    ->render(fn(Proposta $p) => DropDown::make() // Mantém o DropDown para futuras ações
+                        ->icon('bs.three-dots-vertical')
+                        ->list([
+                            Link::make('Visualizar')
+                                ->icon('bs.eye')
+                                ->route('platform.propostas.view', $p),
+
+                            Button::make('Desarquivar')
+                                ->icon('bs.folder-symlink-fill') // Ícone atualizado para desarquivar
+                                ->confirm('Deseja desarquivar esta proposta? Ela voltará para a lista de ativas.')
+                                ->method('unarchive', [ // Chama o método unarchive do pai (PropostasListScreen)
+                                    'proposta' => $p->id,
+                                ]),
+                        ])),
             ]),
         ];
     }

@@ -60,79 +60,111 @@ class PlatformProvider extends OrchidServiceProvider
     public function menu(): array
     {
         return [
-            // Dashboard
+
+            /*
+            |--------------------------------------------------------------------------
+            | PAINEL
+            |--------------------------------------------------------------------------
+            */
             Menu::make('Dashboard')
                 ->icon('bs.house')
                 ->route('platform.dashboard')
-                ->title('Navegação'),
+                ->title('Painel'),
 
-            // CRUDs
-            Menu::make('Clientes')
-                ->icon('bs.people')
-                ->route('platform.clientes.index'),
-            Menu::make('Imóveis')
-                ->icon('bs.building')
-                ->route('platform.imoveis.index'),
-            Menu::make('Aluguéis')
-                ->icon('bs.house-heart')
-                ->route('platform.alugueis.index'),
-            Menu::make('Contratos')
-                ->icon('bs.file-contract')
-                ->route('platform.contratos.index'),
-            Menu::make('Comissões')
-                ->icon('bs.currency-dollar')
-                ->route('platform.comissoes.index'),
 
-            // Construtoras e Leads
-            Menu::make('Construtoras')
-                ->icon('bs.buildings')
-                ->route('platform.construtoras.index'),
+            /*
+            |--------------------------------------------------------------------------
+            | SEÇÃO GERAL
+            |--------------------------------------------------------------------------
+            */
             Menu::make('Leads')
                 ->icon('bs.magnet')
                 ->route('platform.leads.index')
+                ->title('Geral')
                 ->list([
-                    Menu::make('Kanban Leads')
-                        ->route('platform.leads.kanban')
-                        ->icon('bs.kanban'),
+                    Menu::make('Kanban de Leads')
+                        ->icon('bs.kanban')
+                        ->route('platform.leads.kanban'),
                 ]),
+
+            Menu::make('Imóveis')
+                ->icon('bs.building')
+                ->route('platform.imoveis.index'),
+
+            Menu::make('Construtoras')
+                ->icon('bs.buildings')
+                ->route('platform.construtoras.index'),
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | FINANCEIRO
+            |--------------------------------------------------------------------------
+            */
+            Menu::make('Fluxo Financeiro')
+                ->icon('bs.graph-up')
+                ->route('platform.fluxo')
+                ->title('Financeiro'),
+
             Menu::make('Propostas')
                 ->icon('bs.file-earmark-text')
                 ->route('platform.propostas.index')
                 ->list([
-                    Menu::make('Kanban Propostas')
-                        ->route('platform.propostas.kanban')
-                        ->icon('bs.kanban'),
                     Menu::make('Arquivadas')
-                        ->route('platform.propostas.arquivadas')
-                        ->icon('bs.archive'),
+                        ->icon('bs.archive')
+                        ->route('platform.propostas.arquivadas'),
                 ]),
 
-            // Fluxo e Perfil
-            Menu::make('Fluxo Financeiro')
-                ->icon('bs.graph-up')
-                ->route('platform.fluxo'),
+            Menu::make('Contratos')
+                ->icon('bs.file-contract')
+                ->route('platform.contratos.index'),
+
+            Menu::make('Comissões')
+                ->icon('bs.currency-dollar')
+                ->route('platform.comissoes.index'),
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | GESTÃO DE ALUGUÉIS
+            |--------------------------------------------------------------------------
+            */
+            Menu::make('Aluguéis')
+                ->icon('bs.house-heart')
+                ->route('platform.alugueis.index')
+                ->title('Gestão de Aluguéis'),
+
+            Menu::make('Clientes')
+                ->icon('bs.people')
+                ->route('platform.clientes.index'),
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SISTEMA
+            |--------------------------------------------------------------------------
+            */
             Menu::make('Perfil')
                 ->icon('bs.person')
-                ->route('platform.profile'),
+                ->route('platform.profile')
+                ->title('Sistema'),
 
-            // Sistemas
             Menu::make('Usuários')
                 ->icon('bs.people')
                 ->route('platform.systems.users')
                 ->permission('platform.systems.users'),
+
             Menu::make('Papéis')
                 ->icon('bs.shield-lock')
                 ->route('platform.systems.roles')
                 ->permission('platform.systems.roles'),
 
-            // Configurações (com submenu Prompts IA)
             Menu::make('Configurações')
                 ->icon('bs.gear')
                 ->route('platform.configuracoes')
-                ->title('Sistema')
                 ->list([
                     Menu::make('Prompts de IA')
-                        ->icon('bs.bot')
+                        ->icon('bs.robot')
                         ->route('platform.config.prompts.index'),
                 ]),
         ];
