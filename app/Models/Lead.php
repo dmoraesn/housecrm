@@ -1,33 +1,18 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\LeadOrigem;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Orchid\Screen\AsSource;
-
-use OpenAI; // Import para o cliente OpenAI (pacote openai-php/client)
-
-use AITemplate; // Import para o modelo de templates de IA
-use App\Enums\LeadStatus; // Import do enum compartilhado
-
-enum LeadOrigem: string
-{
-    case SITE = 'Site';
-    case INSTAGRAM = 'Instagram';
-    case FACEBOOK = 'Facebook';
-    case INDICACAO = 'Indicação';
-    case ANUNCIO = 'Anúncio';
-    case WHATSAPP = 'WhatsApp';
-    case GOOGLE = 'Google';
-    case EMAIL = 'Email';
-    case TELEFONE = 'Telefone';
-    case EVENTO = 'Evento';
-    case OUTRO = 'Outro';
-}
+use OpenAI;
+use AITemplate;
+use App\Enums\LeadStatus;
 
 class Lead extends Model
 {
@@ -39,7 +24,6 @@ class Lead extends Model
         'nome',
         'email',
         'telefone',
-        'documento',
         'origem',
         'mensagem',
         'status',
@@ -55,8 +39,8 @@ class Lead extends Model
         'data_contato' => 'datetime',
         'valor_interesse' => 'decimal:2',
         'order' => 'integer',
-        'status' => LeadStatus::class,
-        'origem' => LeadOrigem::class,
+        'status' => \App\Enums\LeadStatus::class,
+        'origem' => \App\Enums\LeadOrigem::class,
         'historico_interacoes' => 'array',
     ];
 
@@ -96,13 +80,39 @@ class Lead extends Model
         return $this->hasMany(ImovelInteresse::class, 'lead_id');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    |  ACCESSORS COMPATÍVEIS COM STRING E ENUM
+    |--------------------------------------------------------------------------
+    */
+
     public function getStatusLabelAttribute(): string
     {
-        return $this->status->label();
+        $status = $this->status;
+
+        if ($status instanceof LeadStatus) {
+            return $status->label();
+        }
+
+        if (is_string($status)) {
+            return LeadStatus::tryFrom($status)?->label() ?? '';
+        }
+
+        return '';
     }
 
     public function getStatusBadgeAttribute(): string
     {
+        $status = $this->status;
+
+        if ($status instanceof LeadStatus) {
+            $value = $status->value;
+        } elseif (is_string($status)) {
+            $value = $status;
+        } else {
+            return '<span class="badge bg-secondary text-white fw-semibold">Novo</span>';
+        }
+
         $colors = [
             LeadStatus::NOVO->value => 'bg-info text-white',
             LeadStatus::QUALIFICACAO->value => 'bg-primary text-white',
@@ -112,9 +122,10 @@ class Lead extends Model
             LeadStatus::PERDIDO->value => 'bg-danger text-white',
         ];
 
-        $color = $colors[$this->status->value] ?? 'bg-secondary text-white';
+        $label = $this->status_label;
+        $color = $colors[$value] ?? 'bg-secondary text-white';
 
-        return "<span class=\"badge {$color} fw-semibold\">{$this->status_label}</span>";
+        return "<span class=\"badge {$color} fw-semibold\">{$label}</span>";
     }
 
     public function getTelefoneFormatadoAttribute(): ?string
@@ -167,44 +178,50 @@ class Lead extends Model
             ";
         }
 
-        $html .= '</div>';
-
-        return $html;
+        return $html . '</div>';
     }
 
     public static function statusOptions(): array
     {
-        return [
-            LeadStatus::NOVO->value => LeadStatus::NOVO->label(),
-            LeadStatus::QUALIFICACAO->value => LeadStatus::QUALIFICACAO->label(),
-            LeadStatus::VISITA->value => LeadStatus::VISITA->label(),
-            LeadStatus::NEGOCIACAO->value => LeadStatus::NEGOCIACAO->label(),
-            LeadStatus::FECHAMENTO->value => LeadStatus::FECHAMENTO->label(),
-            LeadStatus::PERDIDO->value => LeadStatus::PERDIDO->label(),
-        ];
+        return collect(LeadStatus::cases())
+            ->filter(fn (LeadStatus $status) => in_array($status->value, self::FLUXO_VENDAS, true))
+            ->mapWithKeys(fn (LeadStatus $status) => [$status->value => $status->label()])
+            ->toArray();
     }
 
     public static function origemOptions(): array
     {
-        return array_column(LeadOrigem::cases(), 'value', 'value');
+        return collect(LeadOrigem::cases())
+            ->mapWithKeys(fn (LeadOrigem $origem) => [$origem->value => ucfirst($origem->value)])
+            ->toArray();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    |  LÓGICA DE AVANÇAR E PERDER — CORRIGIDA
+    |--------------------------------------------------------------------------
+    */
 
     public function avancarEtapa(): bool
     {
-        $index = array_search($this->status->value, self::FLUXO_VENDAS);
+        $statusValue = $this->status instanceof LeadStatus ? $this->status->value : $this->status;
+
+        $index = array_search($statusValue, self::FLUXO_VENDAS);
 
         if ($index === false || $index === count(self::FLUXO_VENDAS) - 1) {
             return false;
         }
 
-        $this->status = LeadStatus::from(self::FLUXO_VENDAS[$index + 1]);
+        // CORREÇÃO — agora atribui STRING sempre
+        $this->status = self::FLUXO_VENDAS[$index + 1];
 
         return $this->save();
     }
 
     public function marcarComoPerdido(?string $motivo = null): bool
     {
-        $this->status = LeadStatus::PERDIDO;
+        // CORREÇÃO — atribuir string, não Enum
+        $this->status = LeadStatus::PERDIDO->value;
 
         if ($motivo) {
             $this->observacoes = "Perdido: {$motivo}\n\n" . ($this->observacoes ?? '');
@@ -220,7 +237,14 @@ class Lead extends Model
 
     public function gerarFollowUpIA(): array
     {
-        $template = AITemplate::getTemplate($this->status->value);
+        $statusValue = $this->status instanceof LeadStatus ? $this->status->value : $this->status;
+
+        if (!$statusValue) {
+            return ['success' => false, 'message' => 'Status não definido para IA.'];
+        }
+
+        $template = AITemplate::getTemplate($statusValue);
+
         if (!$template) {
             return ['success' => false, 'message' => 'Status não suportado para IA.'];
         }
@@ -229,16 +253,17 @@ class Lead extends Model
             'nome' => $this->nome ?? '',
             'email' => $this->email ?? '',
             'telefone' => $this->telefone_formatado ?? '',
-            'origem' => $this->origem->value ?? '',
+            'origem' => $this->origem?->value ?? $this->origem ?? '',
             'mensagem' => $this->mensagem ?? '',
             'valor_interesse' => $this->valor_interesse ?? '',
             'observacoes' => $this->observacoes ?? '',
         ];
 
-        $prompt = AITemplate::getFormattedPrompt($this->status->value, $data);
+        $prompt = AITemplate::getFormattedPrompt($statusValue, $data);
 
         try {
             $client = OpenAI::client(env('OPENAI_API_KEY'));
+
             $response = $client->chat()->create([
                 'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
                 'messages' => [['role' => 'user', 'content' => $prompt]],
@@ -248,14 +273,15 @@ class Lead extends Model
 
             $mensagemGerada = trim($response->choices[0]->message->content);
 
-            $historicoAtual = $this->historico_interacoes ?? [];
-            $historicoAtual[] = [
+            $historico = $this->historico_interacoes ?? [];
+            $historico[] = [
                 'data' => now()->toDateTimeString(),
                 'acao' => 'followup_ia',
                 'mensagem' => $mensagemGerada,
                 'resposta' => null,
             ];
-            $this->historico_interacoes = $historicoAtual;
+
+            $this->historico_interacoes = $historico;
             $this->save();
 
             return ['success' => true, 'message' => $mensagemGerada];
@@ -270,8 +296,8 @@ class Lead extends Model
             $ultima = end($this->historico_interacoes);
 
             if ($ultima['acao'] === 'followup_ia' && is_null($ultima['resposta'])) {
-                $ultima['resposta'] = $resposta;
-                $this->historico_interacoes[array_key_last($this->historico_interacoes)] = $ultima;
+                $key = array_key_last($this->historico_interacoes);
+                $this->historico_interacoes[$key]['resposta'] = $resposta;
                 $this->save();
             }
         }
@@ -305,7 +331,7 @@ class Lead extends Model
     protected static function booted(): void
     {
         static::creating(function (self $lead) {
-            $lead->status ??= LeadStatus::NOVO;
+            $lead->status ??= LeadStatus::NOVO->value;
             $lead->order ??= self::nextOrderForStatus($lead->status);
             $lead->historico_interacoes ??= [];
         });
@@ -317,8 +343,10 @@ class Lead extends Model
         });
     }
 
-    private static function nextOrderForStatus(LeadStatus $status): int
+    private static function nextOrderForStatus(LeadStatus|string $status): int
     {
-        return (int) self::where('status', $status->value)->max('order') + 1;
+        $value = $status instanceof LeadStatus ? $status->value : $status;
+
+        return (int) self::where('status', $value)->max('order') + 1;
     }
 }

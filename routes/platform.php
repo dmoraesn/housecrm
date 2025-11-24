@@ -13,7 +13,9 @@ use App\Models\{
     Contrato,
     Comissao,
     Proposta,
-    Lead
+    Lead,
+    // ADIÇÃO IA: Modelo para Prompts
+    AITemplate // Importação explícita
 };
 // --------------------------------------------------------------------------
 // SCREENS GERAIS
@@ -290,6 +292,10 @@ Route::prefix('leads')->name('platform.leads.')->group(function () {
         ->breadcrumbs(fn (Trail $trail) =>
             $trail->parent('platform.index')->push('Leads')
         );
+    // Rota de Follow-up com IA (Consolidada e Corrigida)
+    Route::post('ai/followup', [LeadAiController::class, 'generateFollowUp'])
+        ->name('ai.followup');
+        
     Route::screen('create', LeadEditScreen::class)
         ->name('create')
         ->breadcrumbs(fn (Trail $trail) =>
@@ -310,10 +316,6 @@ Route::prefix('leads')->name('platform.leads.')->group(function () {
         ->name('kanban.update');
     Route::post('kanban/update-drag', [LeadKanbanScreen::class, 'updateKanban'])
         ->name('kanban.update.drag');
-    
-    // ADIÇÃO IA: Rota para geração de follow-up com ChatGPT (dentro do grupo leads)
-    Route::post('ai/followup', [LeadAiController::class, 'generateFollowUp'])
-        ->name('ai.followup');
 });
 // --------------------------------------------------------------------------
 // CONFIGURAÇÕES
@@ -336,4 +338,28 @@ Route::prefix('examples')->name('platform.example.')->group(function () {
     Route::screen('grid', ExampleGridScreen::class)->name('grid');
     Route::screen('charts', ExampleChartsScreen::class)->name('charts');
     Route::screen('cards', ExampleCardsScreen::class)->name('cards');
+});
+// --------------------------------------------------------------------------
+// CONFIGURAÇÕES → PROMPTS DE IA (CORRIGIDO)
+// --------------------------------------------------------------------------
+use App\Orchid\Screens\AITemplateListScreen;
+use App\Orchid\Screens\AITemplateEditScreen;
+// Nota: O model AITemplate foi movido para o bloco de MODELOS no topo do arquivo.
+Route::prefix('configuracoes/prompts-ia')->name('platform.config.prompts.')->group(function () {
+    Route::screen('/', AITemplateListScreen::class)
+        ->name('index')
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.configuracoes')->push('Prompts de IA')
+        );
+    Route::screen('create', AITemplateEditScreen::class)
+        ->name('create')
+        ->breadcrumbs(fn (Trail $trail) =>
+            $trail->parent('platform.config.prompts.index')->push('Criar Prompt')
+        );
+    Route::screen('{template}/edit', AITemplateEditScreen::class)
+        ->name('edit')
+        ->whereNumber('template')
+        ->breadcrumbs(fn (Trail $trail, AITemplate $template) => // <-- CORREÇÃO APLICADA AQUI
+            $trail->parent('platform.config.prompts.index')->push("Editar Prompt #{$template->id}")
+        );
 });

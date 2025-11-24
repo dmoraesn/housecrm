@@ -21,7 +21,7 @@
 <div class="container-fluid mt-3">
     <div id="kanban-wrapper"
          data-update-url="{{ route('platform.leads.kanban.update') }}"
-         data-ai-url="@if(Route::has('platform.leads.ai.followup')){{ route('platform.leads.ai.followup') }}@else# @endif"
+         data-ai-url="{{ route('platform.leads.ai.followup') }}"
          class="row g-4">
 
         @foreach ($columns as $column)

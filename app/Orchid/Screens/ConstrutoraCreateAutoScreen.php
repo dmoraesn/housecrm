@@ -20,13 +20,26 @@ use Orchid\Support\Facades\Toast;
  */
 class ConstrutoraCreateAutoScreen extends Screen
 {
+    // CORREÇÃO: Inicializa a propriedade para evitar o erro "must not be accessed before initialization".
     public Construtora $construtora;
+
+    public function __construct()
+    {
+        $this->construtora = new Construtora();
+    }
 
     public function query(Construtora $construtora): array
     {
-        // Always starts with a new model instance
-        $this->construtora = $construtora->exists ? new Construtora() : $construtora;
+        // Agora, você pode simplificar a lógica, pois a propriedade já existe.
+        // O $construtora que chega é o passado pela rota. Se for passado um ID, ele carrega.
+        // Como o objetivo é CRIAÇÃO, vamos garantir que seja sempre uma nova instância,
+        // mas respeitando a injeção do Orchid.
+        
+        // Se a rota não passar um modelo (criação), $construtora será uma nova instância.
+        // O código original estava confuso, pois você injetava um modelo e depois criava um novo
+        // se ele existisse (o oposto do esperado).
 
+        // Mantendo a intenção de CRIAÇÃO e carregamento temporário:
         if (session()->has('construtora_temp_data')) {
             $this->construtora->fill(session('construtora_temp_data'));
         }
@@ -167,12 +180,12 @@ class ConstrutoraCreateAutoScreen extends Screen
 
         validator($data, $rules)->validate();
 
-        $construtora->fill($data)->save();
-
+        $this->construtora->fill($data)->save(); // Usa $this->construtora para garantir que é a instância atual da tela
+        
         session()->forget('construtora_temp_data');
 
         Toast::success('Construtora salva com sucesso!');
         // Redireciona para a tela de edição após a criação
-        return redirect()->route('platform.construtoras.edit', $construtora);
+        return redirect()->route('platform.construtoras.edit', $this->construtora);
     }
 }

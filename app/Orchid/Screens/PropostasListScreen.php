@@ -7,7 +7,7 @@ namespace App\Orchid\Screens;
 use App\Models\Proposta;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
-use Orchid\Screen\Actions\DropDown; // <--- Correção: Usamos DropDown
+use Orchid\Screen\Actions\DropDown; 
 use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
@@ -20,6 +20,20 @@ class PropostasListScreen extends Screen
     public $description = 'Listagem e gerenciamento de propostas ativas.';
 
     /**
+     * Define os status que são considerados ATIVOS para esta tela.
+     */
+    private const ACTIVE_STATUSES = [
+        'rascunho', 
+        'novo',
+        'analise',
+        'enviado',
+        'revisao',
+        'aceito',
+        'ativa', // CORREÇÃO APLICADA: Incluindo 'ativa' como status válido
+        // Excluímos: 'recusado', 'vendida', 'cancelada', 'arquivada'
+    ];
+
+    /**
      * Query das propostas ativas
      */
     public function query(): iterable
@@ -27,7 +41,7 @@ class PropostasListScreen extends Screen
         return [
             'propostas' => Proposta::with('lead')
                 ->filters()
-                ->where('status', '!=', 'arquivada')
+                ->whereIn('status', self::ACTIVE_STATUSES) 
                 ->orderBy('id', 'desc')
                 ->paginate(),
         ];
@@ -89,8 +103,6 @@ class PropostasListScreen extends Screen
                         view('components.status-badge', ['status' => $p->status])
                     ),
 
-                // --- CORREÇÃO AQUI ---
-                // Substituímos Group (que não existe) por DropDown (padrão do Orchid)
                 TD::make('Ações')
                     ->align(TD::ALIGN_CENTER)
                     ->width('100px')

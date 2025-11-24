@@ -1,211 +1,227 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Orchid\Screens;
 
 use App\Models\Lead;
 use App\Models\User;
-use Orchid\Screen\Screen;
-use Orchid\Support\Facades\Layout;
+use App\Enums\LeadOrigem;
+use App\Enums\LeadStatus;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\Select;
-use Orchid\Screen\Actions\Button;
-use Orchid\Support\Color;
-use Illuminate\Http\Request;
+use Orchid\Screen\Fields\TextArea;
+use Orchid\Screen\Screen;
+use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
 
 class LeadEditScreen extends Screen
 {
     public $lead;
+    public array $corretorOptions = [];
+    public array $statusOptions = [];
+    public array $origemOptions = [];
 
-    /**
-     * Query data.
-     */
-    public function query(Lead $lead): iterable
+    public function query(Lead $lead): array
     {
+        $lead->mergeCasts([
+            'status' => 'string',
+            'origem' => 'string',
+        ]);
+
+        $this->lead = $lead->exists ? $lead : new Lead();
+
+        if ($this->lead->exists) {
+            $raw = $this->lead->getRawOriginal();
+            $this->lead->setRawAttributes($raw, true);
+        }
+
+        $this->corretorOptions = User::whereHas('roles', fn ($q) =>
+            $q->where('slug', 'corretor')
+        )->pluck('name', 'id')->toArray();
+
+        $this->statusOptions = Lead::statusOptions();
+
+        $this->origemOptions = collect(LeadOrigem::cases())
+            ->mapWithKeys(fn ($case) => [$case->value => ucfirst($case->value)])
+            ->toArray();
+
         return [
-            'lead' => $lead,
+            'lead' => $this->lead,
         ];
     }
 
-    /**
-     * Screen name.
-     */
     public function name(): ?string
     {
-        return 'Editar Lead: ' . $this->lead->nome;
+        return $this->lead->exists ? 'Editar Lead: ' . $this->lead->nome : 'Criar Novo Lead';
     }
 
-    /**
-     * Description (aparece abaixo do título).
-     */
-    public function description(): ?string
+    public function description(): string
     {
-        return 'Gerencie informações e etapa do lead no funil.';
+        return 'Gerencie detalhes, status e atribuição do lead.';
     }
 
-    /**
-     * Badge do status do lead.
-     */
-    public function badge(): ?array
+    public function commandBar(): array
     {
-        $statusMap = [
-            'novo' => Color::INFO(),         // Novo Lead (Azul Claro)
-            'qualificacao' => Color::PRIMARY(),  // Qualificação (Azul)
-            'visita' => Color::WARNING(),     // Visita Marcada (Amarelo)
-            'negociacao' => Color::WARNING(), // Negociação (Amarelo/Laranja - Cor de atenção)
-            'fechamento' => Color::SUCCESS(),    // Fechamento (Verde)
-            'perdido' => Color::DANGER(),       // Perdido (Vermelho)
-        ];
-
-        // Se $this->lead->status é um Enum, o PHP tentará convertê-lo para string (seu valor)
-        $statusKey = $this->lead->status->value ?? $this->lead->status; 
-        $color = $statusMap[$statusKey] ?? Color::SECONDARY(); // Cor padrão
+        // 🔧 Correção cirúrgica: garantir que status seja string ou enum de forma segura
+        $status = $this->lead->status;
+        $statusValue = $status instanceof LeadStatus ? $status->value : $status;
 
         return [
-            $this->lead->status_label => $color,
-        ];
-    }
+            Button::make(__('Salvar'))
+                ->icon('bs.check-circle')
+                ->method('save'),
 
-    /**
-     * Command bar.
-     */
-    public function commandBar(): iterable
-    {
-        return [
-            Button::make('Salvar')
-                ->method('save')
-                ->type(Color::PRIMARY())
-                ->icon('check'),
+            Button::make('Avançar Etapa')
+                ->icon('bs.arrow-right')
+                ->method('avancar')
+                ->canSee(
+                    $this->lead->exists &&
+                    $statusValue !== LeadStatus::FECHAMENTO->value &&
+                    $statusValue !== LeadStatus::PERDIDO->value
+                ),
 
-            Button::make('Excluir')
+            Button::make('Marcar como Perdido')
+                ->icon('bs.x-circle')
+                ->method('perdido')
+                ->confirm('Tem certeza? Isso irá marcar o lead como perdido e tirá-lo do funil de vendas.')
+                ->canSee(
+                    $this->lead->exists &&
+                    $statusValue !== LeadStatus::PERDIDO->value
+                ),
+
+            Button::make(__('Remover'))
+                ->icon('bs.trash')
                 ->method('remove')
-                ->type(Color::DANGER())
-                ->icon('trash'),
+                ->confirm('Tem certeza de que deseja excluir este Lead?')
+                ->canSee($this->lead->exists),
         ];
     }
 
-    /**
-     * Form layout.
-     */
-    public function layout(): iterable
+    public function layout(): array
     {
         return [
             Layout::rows([
-
                 Input::make('lead.nome')
                     ->title('Nome')
+                    ->placeholder('Nome Completo')
                     ->required(),
 
                 Input::make('lead.email')
                     ->title('E-mail')
-                    ->type('email'),
+                    ->type('email')
+                    ->placeholder('exemplo@email.com')
+                    ->required(),
 
                 Input::make('lead.telefone')
                     ->title('Telefone')
-                    ->mask('(99) 99999-9999'),
-
-                Select::make('lead.user_id')
-                    ->title('Corretor Responsável')
-                    ->options(User::pluck('name', 'id')->toArray())
-                    ->empty('Sem corretor'),
-
-                // CORREÇÃO: Usando 'lead.origem.value' para acessar a string primitiva do Enum
-                Select::make('lead.origem.value')
-                    ->title('Origem')
-                    ->options([
-                        'Site' => 'Site',
-                        'Instagram' => 'Instagram',
-                        'Facebook' => 'Facebook',
-                        'Indicação' => 'Indicação',
-                        'Anúncio' => 'Anúncio',
-                        'WhatsApp' => 'WhatsApp',
-                        'Google' => 'Google',
-                        'Email' => 'Email',
-                        'Telefone' => 'Telefone',
-                        'Evento' => 'Evento',
-                        'Outro' => 'Outro',
-                    ])
-                    ->empty('Selecione uma origem'),
-
-                Select::make('lead.status.value')
-                    ->title('Etapa do Funil')
-                    ->required()
-                    ->options([
-                        'novo' => '1 Novo Lead / Descoberta',
-                        'qualificacao' => '2 Qualificação / Entendimento',
-                        'visita' => '3 Apresentação / Visita',
-                        'negociacao' => '4 Proposta / Negociação',
-                        'fechamento' => '5 Fechamento / Contrato',
-                        'perdido' => '6 Perdido',
-                    ]),
+                    ->mask('(99) 99999-9999')
+                    ->placeholder('(XX) XXXXX-XXXX'),
 
                 Input::make('lead.valor_interesse')
                     ->title('Valor de Interesse (R$)')
-                    ->mask([
-                        'alias' => 'currency',
-                        'prefix' => 'R$ ',
-                        'groupSeparator' => '.',
-                        'radixPoint' => ',',
-                        'digits' => 2,
-                        'autoGroup' => true,
-                    ]),
+                    ->type('number')
+                    ->step('0.01')
+                    ->placeholder('0.00'),
 
-                Input::make('lead.observacoes')
+                TextArea::make('lead.mensagem')
+                    ->title('Mensagem Original do Lead')
+                    ->rows(3)
+                    ->placeholder('Mensagem enviada pelo lead na captação (se houver).'),
+
+                Select::make('lead.origem')
+                    ->options($this->origemOptions)
+                    ->title('Origem')
+                    ->empty('Selecione uma origem'),
+            ])->title('Informações do Contato'),
+
+            Layout::rows([
+                Select::make('lead.status')
+                    ->options($this->statusOptions)
+                    ->title('Status no Funil')
+                    ->help('Etapa atual do lead no seu fluxo de vendas.')
+                    ->required(),
+
+                Select::make('lead.user_id')
+                    ->options($this->corretorOptions)
+                    ->title('Corretor Responsável')
+                    ->empty('Sem corretor atribuído'),
+
+                Input::make('lead.data_contato')
+                    ->title('Data do Contato')
+                    ->type('datetime-local')
+                    ->help('Data/Hora do primeiro contato ou última interação.'),
+
+                TextArea::make('lead.observacoes')
                     ->title('Observações Internas')
                     ->rows(5)
-                    ->type('textarea'),
-
-            ]),
+                    ->placeholder('Notas sobre o cliente, necessidades e histórico.'),
+            ])->title('Gestão e Funil'),
         ];
     }
 
-    /**
-     * Salvar lead.
-     */
-    public function save(Request $request, Lead $lead)
+    public function save(Request $request)
     {
-        $lead->update($request->get('lead'));
-        Toast::success('Lead atualizado com sucesso!');
-    }
+        $data = $request->get('lead');
 
-    /**
-     * Avançar etapa.
-     */
-    public function avancarEtapa(Lead $lead)
-    {
-        $pipeline = [
-            'novo' => 'qualificacao',
-            'qualificacao' => 'visita',
-            'visita' => 'negociacao',
-            'negociacao' => 'fechamento',
-        ];
+        $validator = Validator::make($data, [
+            'nome' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:leads,email,' . ($this->lead->exists ? $this->lead->id : 'NULL'),
+            'telefone' => 'nullable|string|max:20',
+            'origem' => 'nullable|string|max:255',
+            'mensagem' => 'nullable|string',
+            'valor_interesse' => 'nullable|numeric|min:0',
+            'status' => 'required|string',
+            'user_id' => 'nullable|exists:users,id',
+            'data_contato' => 'nullable|date',
+            'observacoes' => 'nullable|string',
+        ]);
 
-        if (isset($pipeline[$lead->status])) {
-            $lead->status = $pipeline[$lead->status];
-            $lead->save();
-            Toast::success('Etapa avançada!');
-        } else {
-            Toast::warning('Este lead já está na última etapa.');
+        if ($validator->fails()) {
+            foreach ($validator->errors()->all() as $error) {
+                Toast::error($error);
+            }
+            return back()->withInput();
         }
+
+        $this->lead->fill($data)->save();
+
+        Toast::info('Lead salvo com sucesso!');
+
+        return redirect()->route('platform.leads.edit', $this->lead);
     }
 
-    /**
-     * Marcar como perdido.
-     */
-    public function marcarPerdido(Lead $lead)
+    public function avancar()
     {
-        $lead->status = 'perdido';
-        $lead->save();
-        Toast::info('Lead marcado como perdido.');
+        if ($this->lead->avancarEtapa()) {
+            Toast::success("Etapa avançada para: {$this->lead->status_label}.");
+        } else {
+            Toast::error('Não é possível avançar a etapa.');
+        }
+
+        return redirect()->route('platform.leads.edit', $this->lead);
     }
 
-    /**
-     * Remover lead.
-     */
+    public function perdido(Request $request)
+    {
+        $motivo = $request->input('motivo', '');
+
+        $this->lead->marcarComoPerdido($motivo);
+
+        Toast::warning('Lead marcado como perdido e removido do funil.');
+
+        return redirect()->route('platform.leads.index');
+    }
+
     public function remove(Lead $lead)
     {
         $lead->delete();
-        Toast::error('Lead excluído.');
-        return redirect()->route('platform.leads');
+
+        Toast::info('Lead removido permanentemente.');
+
+        return redirect()->route('platform.leads.list');
     }
 }

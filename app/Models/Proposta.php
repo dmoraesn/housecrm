@@ -44,7 +44,10 @@ class Proposta extends Model
         // Legado (caso tenha dados antigos salvos direto na proposta)
         'baloes_json',
         'data_assinatura',
-        'valor_assinatura_contrato'
+        'valor_assinatura_contrato',
+
+        // CORREÇÃO APLICADA: Mapear a coluna 'order'
+        'order', 
     ];
 
     protected $casts = [
@@ -64,6 +67,9 @@ class Proposta extends Model
         'total_parcelamento'        => 'float',
         'valor_assinatura_contrato' => 'float',
 
+        // CORREÇÃO APLICADA: Mapear a coluna 'order'
+        'order'          => 'integer',
+
         'data_assinatura' => 'date',
         'created_at'      => 'datetime',
         'updated_at'      => 'datetime',
@@ -71,6 +77,8 @@ class Proposta extends Model
 
     protected $attributes = [
         'status' => self::STATUS_RASCUNHO,
+        // CORREÇÃO APLICADA: Definir valor padrão para 'order'
+        'order' => 0,
     ];
 
     // ===================================================================

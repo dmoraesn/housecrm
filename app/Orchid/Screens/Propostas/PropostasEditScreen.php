@@ -17,6 +17,7 @@ use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
 use Spatie\Browsershot\Browsershot;
+use Illuminate\Support\Facades\Redirect; // Importação necessária
 
 class PropostasEditScreen extends Screen
 {
@@ -26,8 +27,14 @@ class PropostasEditScreen extends Screen
     private ?string $name;
     private ?string $description;
 
-    public function query(Proposta $proposta, Lead $lead = null): array
+    public function query(Proposta $proposta, Lead $lead = null): array|RedirectResponse
     {
+        // CORREÇÃO APLICADA: Redirecionar se estiver no modo de criação (sem proposta e sem lead)
+        if (!$proposta->exists && is_null($lead)) {
+            Toast::info('A criação de novas propostas foi movida para o Fluxo de Leads.');
+            return Redirect::to(url('/admin/fluxo'));
+        }
+
         $this->isViewMode = request()->route()->getName() === 'platform.propostas.view';
 
         if (!$proposta->exists && $lead) {

@@ -35,7 +35,8 @@ class PropostasKanbanScreen extends Screen
     {
         return [
             'statuses' => self::STATUS,
-            'propostas' => Proposta::orderBy('ordem')
+            // CORREÇÃO APLICADA: Assumindo que a coluna correta é 'order' (em vez de 'ordem')
+            'propostas' => Proposta::orderBy('order') 
                 ->get()
                 ->groupBy('status'),
         ];
@@ -64,7 +65,7 @@ class PropostasKanbanScreen extends Screen
     {
         $propostaId = $request->input('id');
         $status = $request->input('status');
-        $ordem = $request->input('ordem'); // array
+        $ordem = $request->input('ordem'); // array, mas os valores representam a coluna 'order'
 
         if (!$propostaId || !$status) {
             return response()->json(['error' => 'Parâmetros inválidos'], 422);
@@ -80,7 +81,8 @@ class PropostasKanbanScreen extends Screen
             // Atualiza a ordem das propostas dentro da coluna
             if (is_array($ordem)) {
                 foreach ($ordem as $index => $id) {
-                    Proposta::where('id', $id)->update(['ordem' => $index]);
+                    // CORREÇÃO APLICADA: Atualiza a coluna 'order' (em vez de 'ordem')
+                    Proposta::where('id', $id)->update(['order' => $index]); 
                 }
             }
         });

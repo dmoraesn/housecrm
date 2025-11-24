@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolePermissionSeeder::class, // cria papéis e usuários
             LeadSeeder::class,           // popula leads aleatórios
+            AITemplateSeeder::class,
         ]);
     }
 }

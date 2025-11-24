@@ -142,11 +142,14 @@ class DashboardScreen extends Screen
                             </div>
                         </div>',
                         $lead->nome,
-                        $lead->source ?? 'Desconhecida'
+                        // CORREÇÃO APLICADA: Acessa o valor string do Enum (via ?->value) 
+                        // e usa coalesce para 'Desconhecida'.
+                        $lead->origem?->value ?? 'Desconhecida' 
                     )),
                 TD::make('status', 'Status')
                     ->align(TD::ALIGN_CENTER)
-                    ->render(fn (Lead $lead) => ucfirst($lead->status)),
+                    // Esta linha foi corrigida na rodada anterior para acessar ->value
+                    ->render(fn (Lead $lead) => ucfirst($lead->status->value)), 
                 TD::make('created_at', 'Criado em')
                     ->align(TD::ALIGN_RIGHT)
                     ->render(fn (Lead $lead) => Carbon::parse($lead->created_at)->format('d/m/Y H:i')),
