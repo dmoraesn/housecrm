@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Orchid\Screens;
@@ -14,6 +13,7 @@ use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Fields\TextArea;
+use Orchid\Screen\Fields\DateTimer;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
@@ -27,26 +27,38 @@ class LeadEditScreen extends Screen
 
     public function query(Lead $lead): array
     {
-        $lead->mergeCasts([
-            'status' => 'string',
-            'origem' => 'string',
-        ]);
-
-        $this->lead = $lead->exists ? $lead : new Lead();
-
-        if ($this->lead->exists) {
-            $raw = $this->lead->getRawOriginal();
-            $this->lead->setRawAttributes($raw, true);
+        // CRIA LEAD VAZIO COM VALORES PADRÃO
+        if (!$lead->exists) {
+            $lead = new Lead();
+            $lead->fill([
+                'status' => LeadStatus::NOVO->value,
+                'origem' => null,
+                'data_contato' => null,
+                'valor_interesse' => null,
+                'observacoes' => null,
+                'mensagem' => null,
+                'telefone' => null,
+                'email' => null,
+                'nome' => null,
+                'user_id' => null,
+            ]);
         }
 
-        $this->corretorOptions = User::whereHas('roles', fn ($q) =>
-            $q->where('slug', 'corretor')
-        )->pluck('name', 'id')->toArray();
+        // Garante que o valor do Enum seja passado como string para o binding do Orchid
+        $lead->status = $lead->status instanceof LeadStatus ? $lead->status->value : $lead->status;
+        $lead->origem = $lead->origem instanceof LeadOrigem ? $lead->origem->value : $lead->origem;
+
+        $this->lead = $lead->exists ? $lead->load('corretor') : $lead;
+
+        $this->corretorOptions = User::whereHas('roles', fn($q) => $q->where('slug', 'corretor'))
+            ->pluck('name', 'id')
+            ->toArray();
 
         $this->statusOptions = Lead::statusOptions();
 
+        // OTIMIZAÇÃO: Agora usa o método label() definido em App\Enums\LeadOrigem
         $this->origemOptions = collect(LeadOrigem::cases())
-            ->mapWithKeys(fn ($case) => [$case->value => ucfirst($case->value)])
+            ->mapWithKeys(fn($case) => [$case->value => $case->label()])
             ->toArray();
 
         return [
@@ -56,7 +68,7 @@ class LeadEditScreen extends Screen
 
     public function name(): ?string
     {
-        return $this->lead->exists ? 'Editar Lead: ' . $this->lead->nome : 'Criar Novo Lead';
+        return $this->lead->exists ? 'Editar Lead: ' . ($this->lead->nome ?? 'Sem nome') : 'Criar Novo Lead';
     }
 
     public function description(): string
@@ -66,12 +78,10 @@ class LeadEditScreen extends Screen
 
     public function commandBar(): array
     {
-        // 🔧 Correção cirúrgica: garantir que status seja string ou enum de forma segura
-        $status = $this->lead->status;
-        $statusValue = $status instanceof LeadStatus ? $status->value : $status;
+        $statusValue = $this->lead->status ?? 'novo';
 
         return [
-            Button::make(__('Salvar'))
+            Button::make('Salvar')
                 ->icon('bs.check-circle')
                 ->method('save'),
 
@@ -80,20 +90,16 @@ class LeadEditScreen extends Screen
                 ->method('avancar')
                 ->canSee(
                     $this->lead->exists &&
-                    $statusValue !== LeadStatus::FECHAMENTO->value &&
-                    $statusValue !== LeadStatus::PERDIDO->value
+                    !in_array($statusValue, ['fechamento', 'perdido'])
                 ),
 
             Button::make('Marcar como Perdido')
                 ->icon('bs.x-circle')
                 ->method('perdido')
                 ->confirm('Tem certeza? Isso irá marcar o lead como perdido e tirá-lo do funil de vendas.')
-                ->canSee(
-                    $this->lead->exists &&
-                    $statusValue !== LeadStatus::PERDIDO->value
-                ),
+                ->canSee($this->lead->exists && $statusValue !== 'perdido'),
 
-            Button::make(__('Remover'))
+            Button::make('Remover')
                 ->icon('bs.trash')
                 ->method('remove')
                 ->confirm('Tem certeza de que deseja excluir este Lead?')
@@ -135,7 +141,8 @@ class LeadEditScreen extends Screen
                 Select::make('lead.origem')
                     ->options($this->origemOptions)
                     ->title('Origem')
-                    ->empty('Selecione uma origem'),
+                    ->empty('Selecione uma origem')
+                    ->help('De onde veio este lead'),
             ])->title('Informações do Contato'),
 
             Layout::rows([
@@ -146,14 +153,15 @@ class LeadEditScreen extends Screen
                     ->required(),
 
                 Select::make('lead.user_id')
-                    ->options($this->corretorOptions)
+                    ->fromModel(User::whereHas('roles', fn($q) => $q->where('slug', 'corretor')), 'name', 'id')
                     ->title('Corretor Responsável')
                     ->empty('Sem corretor atribuído'),
 
-                Input::make('lead.data_contato')
+                DateTimer::make('lead.data_contato')
                     ->title('Data do Contato')
-                    ->type('datetime-local')
-                    ->help('Data/Hora do primeiro contato ou última interação.'),
+                    ->format('Y-m-d\TH:i')
+                    ->allowInput()
+                    ->placeholder('Data e hora do contato'),
 
                 TextArea::make('lead.observacoes')
                     ->title('Observações Internas')
@@ -168,16 +176,16 @@ class LeadEditScreen extends Screen
         $data = $request->get('lead');
 
         $validator = Validator::make($data, [
-            'nome' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:leads,email,' . ($this->lead->exists ? $this->lead->id : 'NULL'),
-            'telefone' => 'nullable|string|max:20',
-            'origem' => 'nullable|string|max:255',
-            'mensagem' => 'nullable|string',
-            'valor_interesse' => 'nullable|numeric|min:0',
-            'status' => 'required|string',
-            'user_id' => 'nullable|exists:users,id',
-            'data_contato' => 'nullable|date',
-            'observacoes' => 'nullable|string',
+            'nome'              => 'required|string|max:255',
+            'email'             => 'required|email|max:255|unique:leads,email,' . ($this->lead->id ?? 'NULL'),
+            'telefone'          => 'nullable|string|max:20',
+            'origem'            => 'nullable|in:' . implode(',', array_keys($this->origemOptions)),
+            'mensagem'          => 'nullable|string',
+            'valor_interesse'=> 'nullable|numeric|min:0',
+            'status'            => 'required|in:' . implode(',', array_keys($this->statusOptions)),
+            'user_id'           => 'nullable|exists:users,id',
+            'data_contato'      => 'nullable|date',
+            'observacoes'       => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -187,10 +195,14 @@ class LeadEditScreen extends Screen
             return back()->withInput();
         }
 
+        if (!empty($data['valor_interesse'])) {
+            $data['valor_interesse'] = str_replace(['.', ' '], '', $data['valor_interesse']);
+            $data['valor_interesse'] = str_replace(',', '.', $data['valor_interesse']);
+        }
+
         $this->lead->fill($data)->save();
 
         Toast::info('Lead salvo com sucesso!');
-
         return redirect()->route('platform.leads.edit', $this->lead);
     }
 
@@ -201,27 +213,21 @@ class LeadEditScreen extends Screen
         } else {
             Toast::error('Não é possível avançar a etapa.');
         }
-
         return redirect()->route('platform.leads.edit', $this->lead);
     }
 
     public function perdido(Request $request)
     {
         $motivo = $request->input('motivo', '');
-
         $this->lead->marcarComoPerdido($motivo);
-
         Toast::warning('Lead marcado como perdido e removido do funil.');
-
         return redirect()->route('platform.leads.index');
     }
 
-    public function remove(Lead $lead)
+    public function remove()
     {
-        $lead->delete();
-
+        $this->lead->delete();
         Toast::info('Lead removido permanentemente.');
-
-        return redirect()->route('platform.leads.list');
+        return redirect()->route('platform.leads.index');
     }
 }

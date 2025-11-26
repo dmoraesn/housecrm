@@ -82,34 +82,82 @@ class Lead extends Model
 
     /*
     |--------------------------------------------------------------------------
-    |  ACCESSORS COMPATÍVEIS COM STRING E ENUM
+    | ACCESSORS CORREÇÃO ORCHID/ENUM
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Garante que o Orchid receba o valor string do Enum, e não o objeto.
+     */
+    public function getStatusAttribute($value): string|LeadStatus|null
+    {
+        if ($value instanceof LeadStatus) {
+            return $value->value;
+        }
+
+        $status = $this->attributes['status'];
+
+        if ($status === null) {
+            return null; // Retorna null se o valor bruto for null
+        }
+
+        // Se for um Enum e o valor for string, retorna o valor string
+        if ($this->hasCast('status', LeadStatus::class)) {
+            // CORREÇÃO DE SEGURANÇA: tryFrom pode receber string|int, mas não null.
+            // A verificação de $status === null já cobre isso.
+            $enumInstance = LeadStatus::tryFrom($status); 
+            return $enumInstance?->value ?? $status;
+        }
+        
+        return $status;
+    }
+    
+    public function getOrigemAttribute($value): string|LeadOrigem|null
+    {
+        if ($value instanceof LeadOrigem) {
+            return $value->value;
+        }
+        
+        $origem = $this->attributes['origem'];
+        
+        // CORREÇÃO PRINCIPAL: Se o valor bruto for null, retorna null.
+        if ($origem === null) {
+            return null;
+        }
+
+        if ($this->hasCast('origem', LeadOrigem::class)) {
+            // Agora $origem é garantido como string (ou o valor do Enum)
+            $enumInstance = LeadOrigem::tryFrom($origem);
+            return $enumInstance?->value ?? $origem;
+        }
+
+        return $origem;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACCESSORS COMPATÍVEIS COM STRING E ENUM (EXISTENTES)
+    |--------------------------------------------------------------------------
+    */
+    
     public function getStatusLabelAttribute(): string
     {
-        $status = $this->status;
-
-        if ($status instanceof LeadStatus) {
-            return $status->label();
+        $statusValue = $this->attributes['status'];
+        
+        if ($statusValue === null) {
+            return '';
         }
 
-        if (is_string($status)) {
-            return LeadStatus::tryFrom($status)?->label() ?? '';
-        }
+        $enum = LeadStatus::tryFrom($statusValue);
 
-        return '';
+        return $enum?->label() ?? '';
     }
 
     public function getStatusBadgeAttribute(): string
     {
-        $status = $this->status;
-
-        if ($status instanceof LeadStatus) {
-            $value = $status->value;
-        } elseif (is_string($status)) {
-            $value = $status;
-        } else {
+        $statusValue = $this->attributes['status'];
+        
+        if (!$statusValue) {
             return '<span class="badge bg-secondary text-white fw-semibold">Novo</span>';
         }
 
@@ -123,7 +171,7 @@ class Lead extends Model
         ];
 
         $label = $this->status_label;
-        $color = $colors[$value] ?? 'bg-secondary text-white';
+        $color = $colors[$statusValue] ?? 'bg-secondary text-white';
 
         return "<span class=\"badge {$color} fw-semibold\">{$label}</span>";
     }
@@ -137,12 +185,12 @@ class Lead extends Model
         $digits = preg_replace('/\D/', '', $this->telefone);
 
         return match (strlen($digits)) {
-            11 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}{$digits[5]}-{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}{$digits[10]}",
-            10 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}-{$digits[5]}{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}",
+            11 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}{$digits[5]}{$digits[6]}-{$digits[7]}{$digits[8]}{$digits[9]}{$digits[10]}",
+            10 => "({$digits[0]}{$digits[1]}) {$digits[2]}{$digits[3]}{$digits[4]}{$digits[5]}-{$digits[6]}{$digits[7]}{$digits[8]}{$digits[9]}",
             default => $this->telefone,
         };
     }
-
+    
     public function getWhatsappLinkAttribute(): ?string
     {
         if (!$this->telefone) {
@@ -192,13 +240,13 @@ class Lead extends Model
     public static function origemOptions(): array
     {
         return collect(LeadOrigem::cases())
-            ->mapWithKeys(fn (LeadOrigem $origem) => [$origem->value => ucfirst($origem->value)])
+            ->mapWithKeys(fn (LeadOrigem $origem) => [$origem->value => $origem->label()])
             ->toArray();
     }
 
     /*
     |--------------------------------------------------------------------------
-    |  LÓGICA DE AVANÇAR E PERDER — CORRIGIDA
+    | LÓGICA DE AVANÇAR E PERDER
     |--------------------------------------------------------------------------
     */
 
@@ -212,7 +260,7 @@ class Lead extends Model
             return false;
         }
 
-        // CORREÇÃO — agora atribui STRING sempre
+        // CORREÇÃO: atribui STRING sempre
         $this->status = self::FLUXO_VENDAS[$index + 1];
 
         return $this->save();
@@ -220,7 +268,7 @@ class Lead extends Model
 
     public function marcarComoPerdido(?string $motivo = null): bool
     {
-        // CORREÇÃO — atribuir string, não Enum
+        // CORREÇÃO: atribuir string, não Enum
         $this->status = LeadStatus::PERDIDO->value;
 
         if ($motivo) {
@@ -253,7 +301,9 @@ class Lead extends Model
             'nome' => $this->nome ?? '',
             'email' => $this->email ?? '',
             'telefone' => $this->telefone_formatado ?? '',
-            'origem' => $this->origem?->value ?? $this->origem ?? '',
+            // No Orchid/Laravel, quando o atributo é acessado, ele chama o accessor que retorna a string,
+            // garantindo que 'origem' seja string ou null.
+            'origem' => $this->origem ?? $this->attributes['origem'] ?? '', 
             'mensagem' => $this->mensagem ?? '',
             'valor_interesse' => $this->valor_interesse ?? '',
             'observacoes' => $this->observacoes ?? '',
@@ -331,6 +381,7 @@ class Lead extends Model
     protected static function booted(): void
     {
         static::creating(function (self $lead) {
+            // Garante que o valor salvo seja string
             $lead->status ??= LeadStatus::NOVO->value;
             $lead->order ??= self::nextOrderForStatus($lead->status);
             $lead->historico_interacoes ??= [];
@@ -338,6 +389,7 @@ class Lead extends Model
 
         static::updating(function (self $lead) {
             if ($lead->isDirty('status')) {
+                 // Garante que o valor salvo seja string
                 $lead->order = self::nextOrderForStatus($lead->status);
             }
         });

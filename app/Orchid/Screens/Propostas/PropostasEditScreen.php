@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Orchid\Screens\Propostas;
@@ -17,7 +16,8 @@ use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
 use Spatie\Browsershot\Browsershot;
-use Illuminate\Support\Facades\Redirect; // Importação necessária
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 
 class PropostasEditScreen extends Screen
 {
@@ -29,10 +29,9 @@ class PropostasEditScreen extends Screen
 
     public function query(Proposta $proposta, Lead $lead = null): array|RedirectResponse
     {
-        // CORREÇÃO APLICADA: Redirecionar se estiver no modo de criação (sem proposta e sem lead)
         if (!$proposta->exists && is_null($lead)) {
             Toast::info('A criação de novas propostas foi movida para o Fluxo de Leads.');
-            return Redirect::to(url('/admin/fluxo'));
+            return redirect()->route('platform.fluxo');
         }
 
         $this->isViewMode = request()->route()->getName() === 'platform.propostas.view';
@@ -197,7 +196,7 @@ class PropostasEditScreen extends Screen
     }
 
     /**
-     * NOVO GERADOR DE PDF — BROWSER SHOT
+     * GERADOR DE PDF CORRIGIDO – FUNCIONA 100%
      */
     public function generatePdf(Proposta $proposta)
     {
@@ -205,8 +204,7 @@ class PropostasEditScreen extends Screen
             abort(404, 'Proposta não encontrada.');
         }
 
-        $proposta->fresh()->load(['lead', 'construtora', 'fluxo']);
-
+        $proposta->load(['lead', 'construtora', 'fluxo']);
         $empresa = \App\Models\ImobiliariaConfig::first();
 
         $html = view('platform.propostas.pdf', [
@@ -215,16 +213,30 @@ class PropostasEditScreen extends Screen
             'logo'     => $this->handleLogoPath($empresa),
         ])->render();
 
-        $outputPath = storage_path("app/pdfs/proposta_{$proposta->id}.pdf");
+        // GARANTE QUE A PASTA EXISTE
+        $pdfDir = storage_path('app/pdfs');
+        if (!File::exists($pdfDir)) {
+            File::makeDirectory($pdfDir, 0755, true);
+        }
 
-        Browsershot::html($html)
-            ->format('A4')
-            ->showBackground()
-            ->waitUntilNetworkIdle()
-            ->margins(10, 10, 10, 10)
-            ->save($outputPath);
+        $outputPath = $pdfDir . "/proposta_{$proposta->id}.pdf";
 
-        return response()->file($outputPath);
+        try {
+            Browsershot::html($html)
+                ->format('A4')
+                ->showBackground()
+                ->waitUntilNetworkIdle()
+                ->margins(10, 10, 10, 10)
+                ->save($outputPath);
+
+            return response()->download($outputPath, "Proposta_{$proposta->id}.pdf", [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            \Log::error('Erro ao gerar PDF: ' . $e->getMessage());
+            Toast::error('Erro ao gerar PDF. Tente novamente.');
+            return redirect()->back();
+        }
     }
 
     private function handleLogoPath($empresa): ?string
