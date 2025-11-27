@@ -85,6 +85,29 @@ class ImobiliariaConfigScreen extends Screen
                     ->placeholder('Rua, Número, Bairro, Cidade - UF, CEP')
                     ->help('Este endereço aparecerá no rodapé dos contratos.'),
             ])->title('Dados Cadastrais'),
+            
+            // NOVO BLOCO DE CONFIGURAÇÕES DE IA
+            Layout::rows([
+                Input::make('config.openai_api_key')
+                    ->title('Chave de API OpenAI/ChatGPT')
+                    ->placeholder('Insira a chave de API (sk-...)')
+                    ->password() // Oculta o valor por segurança
+                    ->canSee($this->query()['config']->openai_api_key === null) // Exibe apenas se não estiver salva
+                    ->help('Armazena a chave de API para serviços de IA, substituindo o uso do .env.'),
+                
+                Input::make('config.openai_api_key_hidden')
+                    ->title('Chave de API OpenAI/ChatGPT')
+                    ->value('************************')
+                    ->disabled()
+                    ->canSee($this->query()['config']->openai_api_key !== null)
+                    ->popover('A chave está salva. Para alterá-la, edite o campo e salve.'),
+
+                Input::make('config.openai_model')
+                    ->title('Modelo Padrão da OpenAI')
+                    ->placeholder('Ex: gpt-4o-mini')
+                    ->help('Define o modelo de IA usado para gerar textos e follow-ups.'),
+                
+            ])->title('Integração com Inteligência Artificial'),
         ];
     }
 
@@ -92,13 +115,19 @@ class ImobiliariaConfigScreen extends Screen
     {
         $config = ImobiliariaConfig::firstOrNew(['id' => 1]);
         
-        // O fill agora funciona direto pois logo_id está no fillable
-        $config->fill($request->input('config'));
+        $data = $request->input('config');
+        
+        // Adiciona validação básica (opcional, mas recomendado)
+        $request->validate([
+            'config.nome_fantasia' => 'required|string|max:255',
+            'config.openai_api_key' => 'nullable|string|max:500', 
+            'config.openai_model' => 'nullable|string|max:100',
+        ]);
+        
+        $config->fill($data);
         $config->save();
 
-        // O anexo é salvo automaticamente pelo Picture targetId() -> logo_id
-        // Não precisamos mais do sync() manual complexo.
-
         Toast::success('Configurações atualizadas com sucesso!');
+        return back();
     }
 }
