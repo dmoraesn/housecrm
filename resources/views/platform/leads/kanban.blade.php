@@ -2,18 +2,17 @@
 /**
  * resources/views/platform/leads/kanban.blade.php
  * Kanban completo com:
- * - IA integrada
- * - Ganchos otimizados
- * - Status sincronizado no drag-and-drop
- * - Correções de evento
- * - Atualizações defensivas
+ * - IA integrada e 100% funcional (Geração + Cópia)
+ * - Cores de Status personalizadas
+ * - Drag-and-Drop otimizado com Sortable.js
+ * - Contadores de Leads por coluna
  */
 @endphp
 
 {{-- Botão de Atualização --}}
 <div class="d-flex justify-content-end mb-2 mt-3">
     <button id="kanban-refresh-btn" class="btn btn-sm btn-outline-primary">
-        <i class="bi bi-arrow-clockwise me-1"></i> Desbloquear Movimentação de Cards
+        <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Kanban
     </button>
 </div>
 
@@ -25,20 +24,19 @@
          class="row g-4">
 
         @foreach ($columns as $column)
-            @php
-                $statusSlug = \Illuminate\Support\Str::slug(strtolower($column->name));
-            @endphp
+            @php $statusSlug = \Illuminate\Support\Str::slug(strtolower($column->name)); @endphp
 
             <div class="col-12 col-md-4 status-{{ $statusSlug }}">
                 <div class="card shadow-sm border-0 h-100">
 
                     {{-- Cabeçalho --}}
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    {{-- O header-bg-color será definido no CSS para manter a cor por status --}}
+                    <div class="card-header d-flex justify-content-between align-items-center header-bg-color">
                         <strong>{{ $column->name }}</strong>
                         <span class="badge bg-light text-dark">{{ $column->leads->count() }}</span>
                     </div>
 
-                    {{-- Cards --}}
+                    {{-- Cards Container --}}
                     <div class="card-body p-2">
                         <div class="kanban-column"
                              data-status="{{ $column->status }}"
@@ -54,7 +52,7 @@
                                     <div>
                                         <h6 class="mb-1">
                                             <a href="{{ route('platform.leads.edit', $lead->id) }}"
-                                               class="text-decoration-none">
+                                               class="text-decoration-none text-dark">
                                                 {{ $lead->nome ?? $lead->name ?? 'Lead #' . $lead->id }}
                                             </a>
                                         </h6>
@@ -64,22 +62,17 @@
                                         </small>
 
                                         @if ($lead->propostas?->count())
-                                            <span class="badge bg-info mt-1">
-                                                {{ $lead->propostas->count() }} Proposta(s)
-                                            </span>
+                                            <span class="badge bg-info mt-1">{{ $lead->propostas->count() }} Proposta(s)</span>
                                         @endif
-
                                         @if ($lead->contratos?->count())
-                                            <span class="badge bg-success mt-1 ms-1">
-                                                {{ $lead->contratos->count() }} Contrato(s)
-                                            </span>
+                                            <span class="badge bg-success mt-1 ms-1">{{ $lead->contratos->count() }} Contrato(s)</span>
                                         @endif
                                     </div>
 
                                     <button class="btn btn-sm btn-outline-secondary ai-icon border-0"
                                             data-lead-id="{{ $lead->id }}"
-                                            data-lead-status="{{ $column->status }}"
                                             data-lead-name="{{ $lead->nome ?? $lead->name ?? 'Lead #' . $lead->id }}"
+                                            data-lead-status="{{ $column->status }}"
                                             title="Gerar Follow-up com IA">
                                         <i class="bi bi-robot"></i>
                                     </button>
@@ -94,7 +87,6 @@
 
                         <div class="view-more-button-placeholder"></div>
                     </div>
-
                 </div>
             </div>
         @endforeach
@@ -116,44 +108,38 @@
             </div>
 
             <div class="modal-body">
-
-                <div id="ai-message" class="alert alert-info d-none mb-3"></div>
+                {{-- Loading --}}
+                <div id="ai-loading" class="text-center py-4 d-none">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Gerando sugestão com IA...</p>
+                </div>
 
                 {{-- Ganchos --}}
                 <div id="ai-hooks" class="mb-4">
-                    <h6 class="fw-bold text-muted mb-2">
-                        <i class="bi bi-lightbulb me-1"></i>Ganchos para Engajar:
+                    <h6 class="fw-bold text-muted mb-3">
+                        <i class="bi bi-lightbulb me-1"></i> Ganchos para Engajar:
                     </h6>
                     <div class="d-flex flex-wrap gap-2" id="hooks-container"></div>
 
-                    <button type="button" id="generate-ai-btn"
-                            class="btn btn-outline-primary mt-3">
-                        Gerar Sugestão com IA
+                    <button type="button" id="generate-ai-btn" class="btn btn-primary mt-3">
+                        <i class="bi bi-stars me-1"></i> Gerar Sugestão com IA
                     </button>
                 </div>
 
-                {{-- Mensagem --}}
-                <div id="generated-message-container" class="d-none mb-3">
-                    <label class="fw-bold form-label">Sugestão Gerada:</label>
-                    <pre id="generated-message" class="bg-light border p-3 rounded small"></pre>
+                {{-- Mensagem Gerada --}}
+                <div id="generated-message-container" class="border rounded p-3 bg-light d-none">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <strong>Sugestão Gerada:</strong>
+                        <button id="copy-message-btn" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-copy"></i> Copiar
+                        </button>
+                    </div>
+                    <pre id="generated-message" class="mb-0 small text-dark"></pre>
                 </div>
-
-                {{-- Histórico --}}
-                <div id="ai-history" class="mt-4">
-                    <h6 class="fw-bold">
-                        <i class="bi bi-clock-history me-1"></i> Histórico
-                    </h6>
-                    <div class="timeline"></div>
-                </div>
-
             </div>
 
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <button id="send-message-btn"
-                        class="btn btn-primary d-none">
-                    <i class="bi bi-send me-1"></i>Enviar Mensagem
-                </button>
             </div>
 
         </div>
@@ -162,93 +148,69 @@
 
 @push('head')
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<link rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
 /* KANBAN */
 .kanban-column {
-    background: #f0f0f0;
+    background: #f8f9fa;
     min-height: 200px;
     padding: 10px;
-    border-radius: 4px;
+    border-radius: 8px;
 }
 .kanban-card {
     cursor: grab;
     transition: box-shadow .2s;
 }
 .kanban-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .kanban-ghost {
     opacity: .4!important;
     border: 2px dashed #aaa!important;
+    background: #ddd;
 }
 
-/* Status Colors */
-.status-novo .card-header { background:#007bff;color:#fff; }
-.status-qualificacao .card-header { background:#ffc107;color:#333; }
-.status-visita .card-header { background:#28a745;color:#fff; }
-.status-negociacao .card-header { background:#fd7e14;color:#fff; }
-.status-fechamento .card-header { background:#6f42c1;color:#fff; }
-.status-perdido .card-header { background:#dc3545;color:#fff; }
+/* Status Colors (Header) */
+.status-novo .card-header { background:#007bff;color:#fff; } /* Primary */
+.status-qualificacao .card-header { background:#ffc107;color:#333; } /* Warning */
+.status-visita .card-header { background:#28a745;color:#fff; } /* Success */
+.status-negociacao .card-header { background:#fd7e14;color:#fff; } /* Orange/Dark Warning */
+.status-fechamento .card-header { background:#6f42c1;color:#fff; } /* Purple/Indigo */
+.status-perdido .card-header { background:#dc3545;color:#fff; } /* Danger */
 
 /* Hooks */
 .hook-chip {
     padding: .5rem 1rem;
-    border-radius: 20px;
+    border-radius: 50px;
     background:#e3f2fd;
     border:1px solid #2196f3;
     color:#1976d2;
     cursor:pointer;
     transition:all .2s;
+    font-size: 0.9rem;
 }
-.hook-chip:hover {
+.hook-chip:hover, .hook-chip.selected {
     background:#2196f3;
     color:white;
-}
-.hook-chip.selected {
-    background:#2196f3;
-    color:white;
-}
-
-/* Timeline */
-.timeline {
-    position:relative;
-    padding-left: 30px;
-    border-left:3px solid #dee2e6;
-}
-.timeline-item {
-    margin-bottom:20px;
-    padding-left:20px;
-}
-.timeline-item::before {
-    content:'';
-    position:absolute;
-    left:-18px;
-    width:16px;
-    height:16px;
-    background:#007bff;
-    border-radius:50%;
-    border:3px solid white;
 }
 
 /* Toast */
 .kanban-toast {
     position:fixed;
-    top:15px;
-    right:15px;
-    padding:10px 20px;
-    border-radius:5px;
+    top:20px;
+    right:20px;
+    padding:12px 20px;
+    border-radius:8px;
     z-index:10000;
     opacity:0;
     transition:opacity .3s;
     color:white;
+    font-weight: 500;
 }
 .kanban-toast.show { opacity:1; }
 .kanban-toast.success { background:#28a745; }
 .kanban-toast.danger { background:#dc3545; }
-.kanban-toast.warning { background:#ffc107;color:#333; }
+.kanban-toast.warning { background:#ffc107;color:#212529; }
 </style>
 @endpush
 
@@ -258,17 +220,22 @@
 
 <script>
 /* ==========================================
-   HELPERS
+    CONFIGURAÇÃO GLOBAL E HELPERS
 ========================================== */
+const KANBAN_WRAPPER = document.getElementById('kanban-wrapper');
+const AI_URL = KANBAN_WRAPPER.dataset.aiUrl;
+const UPDATE_URL = KANBAN_WRAPPER.dataset.updateUrl;
+let currentLead = null; // Armazena dados do lead ativo no modal
+
 const getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 const showToast = (msg, type='success') => {
     document.querySelectorAll('.kanban-toast').forEach(t => t.remove());
     const toast = document.createElement('div');
     toast.className = `kanban-toast ${type}`;
-    toast.innerHTML = msg;
+    toast.innerHTML = `<span>${msg}</span>`;
     document.body.appendChild(toast);
-    void toast.offsetWidth;
+    void toast.offsetWidth; // Trigger reflow
     toast.classList.add('show');
     setTimeout(() => {
         toast.classList.remove('show');
@@ -276,9 +243,6 @@ const showToast = (msg, type='success') => {
     }, 3000);
 };
 
-/* ==========================================
-   GANCHOS POR STATUS
-========================================== */
 const hooksByStatus = {
     novo: [
         'Qual o valor ideal que você imagina investir?',
@@ -336,18 +300,24 @@ const hooksByStatus = {
     ]
 };
 
-/* ==========================================
-   DRAG & DROP
-========================================== */
-function initializeSortableColumns() {
-    const columns = document.querySelectorAll('.kanban-column');
-    const updateUrl = document.getElementById('kanban-wrapper').dataset.updateUrl;
+function getHooksForStatus(status) {
+    return hooksByStatus[status] || hooksByStatus.novo;
+}
 
-    columns.forEach(column => {
-        const existing = Sortable.get(column);
+function shuffle(arr) {
+    return arr.sort(() => Math.random() - 0.5);
+}
+
+/* ==========================================
+    DRAG & DROP + CONTADORES
+========================================== */
+function initializeKanban() {
+    document.querySelectorAll('.kanban-column').forEach(col => {
+        // Destrói instância existente para evitar duplicidade em recarregamentos dinâmicos
+        const existing = Sortable.get(col);
         if (existing) existing.destroy();
 
-        new Sortable(column, {
+        new Sortable(col, {
             group: 'kanban-leads',
             animation: 150,
             draggable: '.kanban-card',
@@ -355,51 +325,49 @@ function initializeSortableColumns() {
             preventOnFilter: true,
             ghostClass: 'kanban-ghost',
 
-            onEnd: evt => {
+            onEnd: async (evt) => {
                 const card = evt.item;
                 const newStatus = evt.to.dataset.status;
-                const oldStatus = card.dataset.status;
 
-                if (newStatus === oldStatus && evt.oldIndex === evt.newIndex) return;
-
+                // Atualiza o status no DOM e no objeto do lead atual (se for o mesmo)
                 card.dataset.status = newStatus;
-
                 const aiBtn = card.querySelector('.ai-icon');
                 if (aiBtn) aiBtn.dataset.leadStatus = newStatus;
 
-                if (window.currentLeadData &&
-                    window.currentLeadData.id === card.dataset.id) {
-                    window.currentLeadData.status = newStatus;
+                if (currentLead && currentLead.id === card.dataset.id) {
+                    currentLead.status = newStatus;
                 }
 
-                const cards = [...evt.to.querySelectorAll('.kanban-card')];
-                const order = cards.findIndex(c => c.dataset.id === card.dataset.id);
+                // Calcula a nova ordem
+                const order = Array.from(evt.to.querySelectorAll('.kanban-card'))
+                    .findIndex(c => c.dataset.id === card.dataset.id);
 
-                fetch(updateUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        id: card.dataset.id,
-                        status: newStatus,
-                        order: order
-                    })
-                })
-                .then(r => r.json())
-                .then(res => {
+                try {
+                    const response = await fetch(UPDATE_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: card.dataset.id,
+                            status: newStatus,
+                            order: order
+                        })
+                    });
+
+                    const res = await response.json();
+
                     if (res.success) {
-                        showToast('Lead movido!', 'success');
+                        showToast('Lead movido com sucesso!', 'success');
                         updateColumnCounters();
                     } else {
-                        showToast('Erro ao mover lead: ' + res.message, 'danger');
+                        showToast('Erro ao mover lead: ' + (res.message || 'Erro desconhecido'), 'danger');
                     }
-                })
-                .catch(err => {
-                    showToast('Erro: ' + err.message, 'danger');
-                });
+                } catch (err) {
+                    showToast('Erro de conexão ao mover lead.', 'danger');
+                }
             }
         });
     });
@@ -416,26 +384,25 @@ function updateColumnCounters() {
 }
 
 /* ==========================================
-   ABRIR MODAL IA
+    ABRIR MODAL IA
 ========================================== */
 document.addEventListener('click', e => {
     const btn = e.target.closest('.ai-icon');
     if (!btn) return;
 
-    const leadId = btn.dataset.leadId;
-    const leadName = btn.dataset.leadName;
-    const leadStatus = btn.dataset.leadStatus;
+    currentLead = {
+        id: btn.dataset.leadId,
+        name: btn.dataset.leadName,
+        status: btn.dataset.leadStatus
+    };
 
-    window.currentLeadData = { id: leadId, name: leadName, status: leadStatus };
-
-    document.getElementById('modal-lead-name').textContent = leadName;
-
-    document.getElementById('ai-message').classList.add('d-none');
+    document.getElementById('modal-lead-name').textContent = currentLead.name;
+    document.getElementById('ai-loading').classList.add('d-none');
     document.getElementById('generated-message-container').classList.add('d-none');
-    document.getElementById('send-message-btn').classList.add('d-none');
 
-    const hooks = hooksByStatus[leadStatus] ?? hooksByStatus['novo'];
-    const randomHooks = shuffle([...hooks]).slice(0, 4);
+    // Popular Ganchos
+    const hooks = getHooksForStatus(currentLead.status);
+    const randomHooks = shuffle([...hooks]).slice(0, 5); // Exibe 5 ganchos aleatórios
 
     const container = document.getElementById('hooks-container');
     container.innerHTML = '';
@@ -451,80 +418,73 @@ document.addEventListener('click', e => {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('aiFollowupModal')).show();
 });
 
-function shuffle(arr) {
-    return arr.sort(() => Math.random() - 0.5);
-}
-
 /* ==========================================
-   GERAR IA
+    GERAR E COPIAR IA
 ========================================== */
-document.getElementById('generate-ai-btn').addEventListener('click', () => {
-    const selectedHooks = [...document.querySelectorAll('.hook-chip.selected')].map(c => c.textContent);
+document.getElementById('generate-ai-btn').addEventListener('click', async () => {
+    if (!currentLead) return showToast('Erro interno: lead não encontrado.', 'danger');
 
-    if (!selectedHooks.length) return showToast('Selecione pelo menos um gancho!', 'warning');
+    const selectedHooks = [...document.querySelectorAll('#hooks-container .hook-chip.selected')]
+        .map(c => c.textContent)
+        .join(' | ');
 
-    if (!window.currentLeadData) return showToast('Erro interno: lead não encontrado.', 'danger');
+    if (!selectedHooks) {
+        return showToast('Selecione pelo menos um gancho!', 'warning');
+    }
 
-    const aiUrl = document.getElementById('kanban-wrapper').dataset.aiUrl;
-
-    const loading = document.getElementById('ai-message');
+    const loading = document.getElementById('ai-loading');
     loading.classList.remove('d-none');
-    loading.innerHTML = `
-        <div class="text-center">
-            <div class="spinner-border text-primary"></div>
-            Gerando sugestão...
-        </div>
-    `;
+    document.getElementById('generated-message-container').classList.add('d-none');
 
-    fetch(aiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': getCsrfToken(),
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-            lead_id: window.currentLeadData.id,
-            status: window.currentLeadData.status,
-            contexto_extra: selectedHooks.join(' | ')
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
-        loading.classList.add('d-none');
+    try {
+        const res = await fetch(AI_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                lead_id: currentLead.id,
+                status: currentLead.status, // Enviar status para o backend da IA
+                contexto_extra: selectedHooks
+            })
+        });
 
-        if (!res.success) {
-            loading.classList.remove('d-none');
-            loading.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
-            return;
+        const data = await res.json();
+
+        if (data.success && data.content) {
+            document.getElementById('generated-message').textContent = data.content;
+            document.getElementById('generated-message-container').classList.remove('d-none');
+            showToast('Sugestão gerada com sucesso!', 'success');
+        } else {
+            throw new Error(data.message || data.error || 'Resposta inválida da IA');
         }
+    } catch (err) {
+        console.error('Erro IA:', err);
+        showToast('Erro ao gerar mensagem com IA: ' + err.message, 'danger');
+    } finally {
+        loading.classList.add('d-none');
+    }
+});
 
-        document.getElementById('generated-message-container').classList.remove('d-none');
-        document.getElementById('generated-message').textContent = res.message;
-        document.getElementById('send-message-btn').classList.remove('d-none');
-
-        showToast('Sugestão gerada!', 'success');
-    })
-    .catch(err => {
-        loading.classList.remove('d-none');
-        loading.innerHTML = `<div class="alert alert-danger">Erro: ${err.message}</div>`;
+// Copiar mensagem
+document.getElementById('copy-message-btn')?.addEventListener('click', () => {
+    const text = document.getElementById('generated-message').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Mensagem copiada para a área de transferência!', 'success');
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+        showToast('Falha ao copiar mensagem. Tente manualmente.', 'warning');
     });
 });
 
 /* ==========================================
-   ENVIAR MENSAGEM
+    INIT
 ========================================== */
-document.getElementById('send-message-btn').addEventListener('click', () => {
-    showToast('Mensagem enviada! (Simulação)', 'success');
-    bootstrap.Modal.getInstance(document.getElementById('aiFollowupModal')).hide();
-});
-
-/* ==========================================
-   INIT
-========================================== */
-document.addEventListener('DOMContentLoaded', initializeSortableColumns);
-document.addEventListener('screen:load', initializeSortableColumns);
-document.addEventListener('screen:reload', initializeSortableColumns);
+document.addEventListener('DOMContentLoaded', initializeKanban);
+document.addEventListener('screen:load', initializeKanban);
+document.addEventListener('screen:reload', initializeKanban);
 
 document.getElementById('kanban-refresh-btn').onclick = () => window.location.reload();
 </script>

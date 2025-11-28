@@ -10,9 +10,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Orchid\Screen\AsSource;
-use OpenAI;
+use OpenAI\Laravel\Facades\OpenAI; // Novo: Usa o Facade do pacote oficial
 use AITemplate;
 use App\Enums\LeadStatus;
+use App\Models\User; // Adicionado para clareza
+use App\Models\Proposta; // Adicionado para clareza
+use App\Models\Contrato; // Adicionado para clareza
+use App\Models\ImovelInteresse; // Adicionado para clareza
+use Illuminate\Support\Facades\Log; // Adicionado para clareza no catch
 
 class Lead extends Model
 {
@@ -105,21 +110,21 @@ class Lead extends Model
         if ($this->hasCast('status', LeadStatus::class)) {
             // CORREÇÃO DE SEGURANÇA: tryFrom pode receber string|int, mas não null.
             // A verificação de $status === null já cobre isso.
-            $enumInstance = LeadStatus::tryFrom($status); 
+            $enumInstance = LeadStatus::tryFrom($status);
             return $enumInstance?->value ?? $status;
         }
-        
+
         return $status;
     }
-    
+
     public function getOrigemAttribute($value): string|LeadOrigem|null
     {
         if ($value instanceof LeadOrigem) {
             return $value->value;
         }
-        
+
         $origem = $this->attributes['origem'];
-        
+
         // CORREÇÃO PRINCIPAL: Se o valor bruto for null, retorna null.
         if ($origem === null) {
             return null;
@@ -139,11 +144,11 @@ class Lead extends Model
     | ACCESSORS COMPATÍVEIS COM STRING E ENUM (EXISTENTES)
     |--------------------------------------------------------------------------
     */
-    
+
     public function getStatusLabelAttribute(): string
     {
         $statusValue = $this->attributes['status'];
-        
+
         if ($statusValue === null) {
             return '';
         }
@@ -156,7 +161,7 @@ class Lead extends Model
     public function getStatusBadgeAttribute(): string
     {
         $statusValue = $this->attributes['status'];
-        
+
         if (!$statusValue) {
             return '<span class="badge bg-secondary text-white fw-semibold">Novo</span>';
         }
@@ -190,7 +195,7 @@ class Lead extends Model
             default => $this->telefone,
         };
     }
-    
+
     public function getWhatsappLinkAttribute(): ?string
     {
         if (!$this->telefone) {
@@ -283,6 +288,9 @@ class Lead extends Model
         return $this->propostas()->exists();
     }
 
+    /**
+     * Gera follow-up com IA usando OpenAI Laravel Facade (chave, model e temperatura vêm das settings).
+     */
     public function gerarFollowUpIA(): array
     {
         $statusValue = $this->status instanceof LeadStatus ? $this->status->value : $this->status;
@@ -294,16 +302,14 @@ class Lead extends Model
         $template = AITemplate::getTemplate($statusValue);
 
         if (!$template) {
-            return ['success' => false, 'message' => 'Status não suportado para IA.'];
+            return ['success' => false, 'message' => 'Nenhum template de IA encontrado para este status.'];
         }
 
         $data = [
             'nome' => $this->nome ?? '',
             'email' => $this->email ?? '',
             'telefone' => $this->telefone_formatado ?? '',
-            // No Orchid/Laravel, quando o atributo é acessado, ele chama o accessor que retorna a string,
-            // garantindo que 'origem' seja string ou null.
-            'origem' => $this->origem ?? $this->attributes['origem'] ?? '', 
+            'origem' => $this->origem ?? $this->attributes['origem'] ?? '',
             'mensagem' => $this->mensagem ?? '',
             'valor_interesse' => $this->valor_interesse ?? '',
             'observacoes' => $this->observacoes ?? '',
@@ -312,16 +318,21 @@ class Lead extends Model
         $prompt = AITemplate::getFormattedPrompt($statusValue, $data);
 
         try {
-            $client = OpenAI::client(env('OPENAI_API_KEY'));
-
-            $response = $client->chat()->create([
-                'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
-                'messages' => [['role' => 'user', 'content' => $prompt]],
-                'max_tokens' => $template['max_tokens'],
-                'temperature' => 0.7,
+            // Usa o Facade oficial do pacote
+            $response = OpenAI::chat()->create([
+                'model' => setting('openai_model', 'gpt-4o-mini'),
+                'temperature' => (float) setting('ai_temperature', 0.7),
+                'max_tokens' => $template['max_tokens'] ?? 500,
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt]
+                ],
             ]);
 
-            $mensagemGerada = trim($response->choices[0]->message->content);
+            $mensagemGerada = trim($response->choices[0]->message->content ?? '');
+
+            if (empty($mensagemGerada)) {
+                return ['success' => false, 'message' => 'A IA não retornou nenhuma mensagem.'];
+            }
 
             $historico = $this->historico_interacoes ?? [];
             $historico[] = [
@@ -335,8 +346,14 @@ class Lead extends Model
             $this->save();
 
             return ['success' => true, 'message' => $mensagemGerada];
-        } catch (\Exception $e) {
-            return ['success' => false, 'message' => 'Erro na API: ' . $e->getMessage()];
+
+        } catch (\Throwable $e) {
+            Log::error('Erro OpenAI Follow-up Lead #'.$this->id, [
+                'erro' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return ['success' => false, 'message' => 'Erro na IA: ' . $e->getMessage()];
         }
     }
 
@@ -389,7 +406,7 @@ class Lead extends Model
 
         static::updating(function (self $lead) {
             if ($lead->isDirty('status')) {
-                 // Garante que o valor salvo seja string
+                   // Garante que o valor salvo seja string
                 $lead->order = self::nextOrderForStatus($lead->status);
             }
         });
